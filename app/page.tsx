@@ -3,8 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import YouTube, { YouTubeEvent } from "react-youtube"
 
+/*
+UI RESTRUCTURE GOALS
+1. One primary interaction area: A/B loop control
+2. Secondary controls: speed + loop
+3. Saved segments below
+4. Keyboard help moved to modal to reduce visual noise
+*/
+
 type PlayerLike = {
   getCurrentTime: () => number
+  getDuration: () => number
   seekTo: (seconds: number, allowSeekAhead?: boolean) => void
   playVideo: () => void
   pauseVideo: () => void
@@ -22,54 +31,52 @@ type SavedSegment = {
   createdAt: number
 }
 
+type DragTarget = "a" | "b" | "range" | null
+
 const STORAGE_KEY = "youtube-looper-segments"
-const SETTINGS_KEY = "youtube-looper-settings"
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5]
 const YOUTUBE_STATE_PLAYING = 1
-const FINE_STEP = 0.5
+const HANDLE = 24
+const MIN_GAP = 0.1
 
 export default function Home() {
   const playerRef = useRef<PlayerLike | null>(null)
-  const intervalRef = useRef<number | null>(null)
-  const countdownTimeoutRef = useRef<number | null>(null)
-  const countdownIntervalRef = useRef<number | null>(null)
+  const progressBarRef = useRef<HTMLDivElement | null>(null)
 
   const [videoId, setVideoId] = useState("dQw4w9WgXcQ")
   const [inputValue, setInputValue] = useState("")
+
   const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+
   const [pointA, setPointA] = useState<number | null>(null)
   const [pointB, setPointB] = useState<number | null>(null)
-  const [isLooping, setIsLooping] = useState(false)
+
   const [playbackRate, setPlaybackRate] = useState(1)
-  const [segmentTitle, setSegmentTitle] = useState("")
+  const [isLooping, setIsLooping] = useState(false)
+
   const [savedSegments, setSavedSegments] = useState<SavedSegment[]>([])
+  const [segmentTitle, setSegmentTitle] = useState("")
 
-  const [useCountIn, setUseCountIn] = useState(false)
-  const [countInSeconds, setCountInSeconds] = useState(3)
-  const [countdownValue, setCountdownValue] = useState<number | null>(null)
-  const [isCountingDown, setIsCountingDown] = useState(false)
-
-  const currentVideoSegments = useMemo(() => {
-    return savedSegments.filter((segment) => segment.videoId === videoId)
-  }, [savedSegments, videoId])
+  const [dragTarget, setDragTarget] = useState<DragTarget>(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   const canLoop = pointA !== null && pointB !== null && pointB > pointA
 
-  const onReady = (event: YouTubeEvent) => {
-    playerRef.current = event.target as unknown as PlayerLike
-    playerRef.current.setPlaybackRate(playbackRate)
+  const loopStartPercent = duration && pointA !== null ? (pointA / duration) * 100 : 0
+  const loopEndPercent = duration && pointB !== null ? (pointB / duration) * 100 : 0
+  const loopWidth = loopEndPercent - loopStartPercent
+
+  const progressPercent = duration ? (currentTime / duration) * 100 : 0
+
+  const onReady = (e: YouTubeEvent) => {
+    playerRef.current = e.target as unknown as PlayerLike
+    setDuration(playerRef.current.getDuration())
   }
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-
-    try {
-      const parsed = JSON.parse(raw) as SavedSegment[]
-      setSavedSegments(parsed)
-    } catch {
-      localStorage.removeItem(STORAGE_KEY)
-    }
+    if (raw) setSavedSegments(JSON.parse(raw))
   }, [])
 
   useEffect(() => {
@@ -77,661 +84,327 @@ export default function Home() {
   }, [savedSegments])
 
   useEffect(() => {
-    const raw = localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return
+    const id = setInterval(() => {
+      const p = playerRef.current
+      if (!p) return
 
-    try {
-      const parsed = JSON.parse(raw) as {
-        useCountIn?: boolean
-        countInSeconds?: number
-      }
+      const t = p.getCurrentTime()
+      setCurrentTime(t)
+      setDuration(p.getDuration())
 
-      setUseCountIn(Boolean(parsed.useCountIn))
-      if (parsed.countInSeconds === 2 || parsed.countInSeconds === 3) {
-        setCountInSeconds(parsed.countInSeconds)
-      }
-    } catch {
-      localStorage.removeItem(SETTINGS_KEY)
-    }
-  }, [])
-
-  useEffect(() => {
-    localStorage.setItem(
-      SETTINGS_KEY,
-      JSON.stringify({
-        useCountIn,
-        countInSeconds,
-      }),
-    )
-  }, [useCountIn, countInSeconds])
-
-  useEffect(() => {
-    intervalRef.current = window.setInterval(() => {
-      const player = playerRef.current
-      if (!player) return
-
-      const time = player.getCurrentTime()
-      setCurrentTime(time)
-
-      if (
-        isLooping &&
-        pointA !== null &&
-        pointB !== null &&
-        pointB > pointA &&
-        time >= pointB
-      ) {
-        player.seekTo(pointA, true)
-        player.playVideo()
+      if (isLooping && pointA !== null && pointB !== null && t >= pointB) {
+        p.seekTo(pointA, true)
       }
     }, 200)
 
-    return () => {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current)
-      }
-    }
+    return () => clearInterval(id)
   }, [isLooping, pointA, pointB])
 
-  useEffect(() => {
-    return () => {
-      if (countdownTimeoutRef.current !== null) {
-        window.clearTimeout(countdownTimeoutRef.current)
-      }
-      if (countdownIntervalRef.current !== null) {
-        window.clearInterval(countdownIntervalRef.current)
-      }
-    }
-  }, [])
-
-  const clearCountdownTimers = () => {
-    if (countdownTimeoutRef.current !== null) {
-      window.clearTimeout(countdownTimeoutRef.current)
-      countdownTimeoutRef.current = null
-    }
-
-    if (countdownIntervalRef.current !== null) {
-      window.clearInterval(countdownIntervalRef.current)
-      countdownIntervalRef.current = null
-    }
+  const seekTo = (t: number) => {
+    const p = playerRef.current
+    if (!p) return
+    p.seekTo(Math.max(0, Math.min(t, duration)), true)
   }
 
-  const startPlaybackWithCountIn = (startAt: number, shouldEnableLoop: boolean) => {
-    const player = playerRef.current
-    if (!player) return
+  const getTimeFromX = (x: number) => {
+    const rect = progressBarRef.current?.getBoundingClientRect()
+    if (!rect) return 0
 
-    clearCountdownTimers()
+    const ratio = (x - rect.left) / rect.width
+    return Math.max(0, Math.min(duration, ratio * duration))
+  }
 
-    player.pauseVideo()
-    player.seekTo(startAt, true)
-    player.setPlaybackRate(playbackRate)
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragTarget) return
 
-    if (!useCountIn) {
-      setIsCountingDown(false)
-      setCountdownValue(null)
-      if (shouldEnableLoop) setIsLooping(true)
-      player.playVideo()
-      return
+    const t = getTimeFromX(e.clientX)
+
+    if (dragTarget === "a") {
+      if (pointB !== null) setPointA(Math.min(t, pointB - MIN_GAP))
     }
 
-    setIsLooping(false)
-    setIsCountingDown(true)
-    setCountdownValue(countInSeconds)
-
-    let remaining = countInSeconds
-
-    countdownIntervalRef.current = window.setInterval(() => {
-      remaining -= 1
-
-      if (remaining > 0) {
-        setCountdownValue(remaining)
-      } else {
-        clearCountdownTimers()
-        setIsCountingDown(false)
-        setCountdownValue(null)
-        if (shouldEnableLoop) setIsLooping(true)
-        player.seekTo(startAt, true)
-        player.setPlaybackRate(playbackRate)
-        player.playVideo()
-      }
-    }, 1000)
-  }
-
-  const handleSetA = () => {
-    setPointA(currentTime)
-  }
-
-  const handleSetB = () => {
-    setPointB(currentTime)
-  }
-
-  const handleToggleLoop = () => {
-    if (!canLoop || pointA === null) return
-
-    if (isLooping || isCountingDown) {
-      clearCountdownTimers()
-      setIsCountingDown(false)
-      setCountdownValue(null)
-      setIsLooping(false)
-      return
+    if (dragTarget === "b") {
+      if (pointA !== null) setPointB(Math.max(t, pointA + MIN_GAP))
     }
 
-    startPlaybackWithCountIn(pointA, true)
-  }
+    if (dragTarget === "range" && pointA !== null && pointB !== null) {
+      const len = pointB - pointA
+      let nextA = t
+      let nextB = t + len
 
-  const seekBy = (seconds: number) => {
-    const player = playerRef.current
-    if (!player) return
-
-    const nextTime = Math.max(0, player.getCurrentTime() + seconds)
-    player.seekTo(nextTime, true)
-  }
-
-  const setSpeed = (rate: number) => {
-    const player = playerRef.current
-    setPlaybackRate(rate)
-    player?.setPlaybackRate(rate)
-  }
-
-  const increaseSpeed = () => {
-    const currentIndex = SPEED_OPTIONS.indexOf(playbackRate)
-    if (currentIndex === -1) return
-    const nextIndex = Math.min(currentIndex + 1, SPEED_OPTIONS.length - 1)
-    setSpeed(SPEED_OPTIONS[nextIndex])
-  }
-
-  const decreaseSpeed = () => {
-    const currentIndex = SPEED_OPTIONS.indexOf(playbackRate)
-    if (currentIndex === -1) return
-    const nextIndex = Math.max(currentIndex - 1, 0)
-    setSpeed(SPEED_OPTIONS[nextIndex])
-  }
-
-  const togglePlayPause = () => {
-    const player = playerRef.current
-    if (!player) return
-
-    const state = player.getPlayerState()
-    if (state === YOUTUBE_STATE_PLAYING) {
-      player.pauseVideo()
-    } else {
-      player.playVideo()
-    }
-  }
-
-  const adjustPointA = (delta: number) => {
-    setPointA((prev) => {
-      if (prev === null) return prev
-      const next = Math.max(0, prev + delta)
-
-      if (pointB !== null && next >= pointB) {
-        return Math.max(0, pointB - 0.1)
+      if (nextB > duration) {
+        nextB = duration
+        nextA = duration - len
       }
 
-      return next
-    })
-  }
-
-  const adjustPointB = (delta: number) => {
-    setPointB((prev) => {
-      if (prev === null) return prev
-      const next = Math.max(0, prev + delta)
-
-      if (pointA !== null && next <= pointA) {
-        return pointA + 0.1
-      }
-
-      return next
-    })
-  }
-
-  const extractVideoId = (value: string): string | null => {
-    try {
-      const url = new URL(value)
-
-      if (url.hostname.includes("youtu.be")) {
-        return url.pathname.replace("/", "") || null
-      }
-
-      if (url.hostname.includes("youtube.com")) {
-        if (url.pathname.includes("/shorts/")) {
-          const parts = url.pathname.split("/")
-          return parts[2] || null
-        }
-        return url.searchParams.get("v")
-      }
-
-      return null
-    } catch {
-      return null
+      setPointA(nextA)
+      setPointB(nextB)
     }
   }
 
-  const handleLoadVideo = () => {
-    const trimmed = inputValue.trim()
-    if (!trimmed) return
+  const stopDrag = () => setDragTarget(null)
 
-    const extracted = extractVideoId(trimmed)
-    if (!extracted) {
-      alert("올바른 유튜브 링크를 넣어주세요.")
-      return
-    }
-
-    clearCountdownTimers()
-    setVideoId(extracted)
-    setPointA(null)
-    setPointB(null)
-    setIsLooping(false)
-    setIsCountingDown(false)
-    setCountdownValue(null)
-    setCurrentTime(0)
-    setSegmentTitle("")
+  const setSpeed = (r: number) => {
+    playerRef.current?.setPlaybackRate(r)
+    setPlaybackRate(r)
   }
 
-  const handleSaveSegment = () => {
-    if (!canLoop || pointA === null || pointB === null) {
-      alert("먼저 A와 B를 올바르게 설정해주세요.")
-      return
+  const toggleLoop = () => {
+    if (!canLoop) return
+
+    if (!isLooping && pointA !== null) {
+      playerRef.current?.seekTo(pointA, true)
     }
 
-    const newSegment: SavedSegment = {
+    setIsLooping((v) => !v)
+  }
+
+  const handleSave = () => {
+    if (!canLoop || pointA === null || pointB === null) return
+
+    const seg: SavedSegment = {
       id: crypto.randomUUID(),
       videoId,
-      title: segmentTitle.trim() || `구간 ${formatTime(pointA)} - ${formatTime(pointB)}`,
+      title: segmentTitle || `${format(pointA)}-${format(pointB)}`,
       start: pointA,
       end: pointB,
       createdAt: Date.now(),
     }
 
-    setSavedSegments((prev) => [newSegment, ...prev])
+    setSavedSegments((s) => [seg, ...s])
     setSegmentTitle("")
   }
 
-  const handleLoadSegment = (segment: SavedSegment) => {
-    const player = playerRef.current
-    if (!player) return
-
-    setPointA(segment.start)
-    setPointB(segment.end)
-    player.seekTo(segment.start, true)
-    player.setPlaybackRate(playbackRate)
-
-    startPlaybackWithCountIn(segment.start, true)
+  const format = (s: number) => {
+    const m = Math.floor(s / 60)
+    const sec = Math.floor(s % 60)
+    return `${m}:${sec.toString().padStart(2, "0")}`
   }
-
-  const handleDeleteSegment = (segmentId: string) => {
-    setSavedSegments((prev) => prev.filter((segment) => segment.id !== segmentId))
-  }
-
-  const formatTime = (seconds: number) => {
-    const total = Math.floor(seconds)
-    const mins = Math.floor(total / 60)
-    const secs = total % 60
-    return `${mins}:${secs.toString().padStart(2, "0")}`
-  }
-
-  const formatTimeWithMs = (seconds: number | null) => {
-    if (seconds === null) return "-"
-    return `${seconds.toFixed(1)}s`
-  }
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null
-      const isTyping =
-        target &&
-        (
-          target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable
-        )
-
-      if (isTyping) return
-
-      if (e.shiftKey && e.key === "ArrowLeft") {
-        e.preventDefault()
-        adjustPointA(-FINE_STEP)
-        return
-      }
-
-      if (e.shiftKey && e.key === "ArrowRight") {
-        e.preventDefault()
-        adjustPointA(FINE_STEP)
-        return
-      }
-
-      if (e.altKey && e.key === "ArrowLeft") {
-        e.preventDefault()
-        adjustPointB(-FINE_STEP)
-        return
-      }
-
-      if (e.altKey && e.key === "ArrowRight") {
-        e.preventDefault()
-        adjustPointB(FINE_STEP)
-        return
-      }
-
-      switch (e.key) {
-        case " ":
-          e.preventDefault()
-          togglePlayPause()
-          break
-        case "ArrowLeft":
-          e.preventDefault()
-          seekBy(-5)
-          break
-        case "ArrowRight":
-          e.preventDefault()
-          seekBy(5)
-          break
-        case "a":
-        case "A":
-          e.preventDefault()
-          handleSetA()
-          break
-        case "b":
-        case "B":
-          e.preventDefault()
-          handleSetB()
-          break
-        case "r":
-        case "R":
-          e.preventDefault()
-          handleToggleLoop()
-          break
-        case "s":
-        case "S":
-          e.preventDefault()
-          handleSaveSegment()
-          break
-        case "-":
-        case "_":
-          e.preventDefault()
-          decreaseSpeed()
-          break
-        case "=":
-        case "+":
-          e.preventDefault()
-          increaseSpeed()
-          break
-        case "Escape":
-          e.preventDefault()
-          clearCountdownTimers()
-          setIsCountingDown(false)
-          setCountdownValue(null)
-          setIsLooping(false)
-          break
-        default:
-          break
-      }
-    }
-
-    window.addEventListener("keydown", handler)
-    return () => window.removeEventListener("keydown", handler)
-  }, [currentTime, canLoop, playbackRate, pointA, pointB, segmentTitle, isLooping, isCountingDown, useCountIn, countInSeconds])
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-4 md:p-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold">YouTube Looper</h1>
-        <p className="text-sm text-gray-600">유튜브 구간 반복 연습용 MVP</p>
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-4">
+
+      {/* header */}
+      <header className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">YouTube Looper</h1>
+
+        <button
+          onClick={() => setShowShortcuts(true)}
+          className="rounded-lg border px-3 py-1 text-sm"
+        >
+          단축키
+        </button>
       </header>
 
-      <section className="flex flex-col gap-2 sm:flex-row">
+
+      {/* load video */}
+      <section className="flex gap-2">
         <input
           className="flex-1 rounded-lg border px-3 py-2"
-          placeholder="유튜브 링크를 넣어주세요"
+          placeholder="유튜브 링크"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
         />
+
         <button
           className="rounded-lg bg-black px-4 py-2 text-white"
-          onClick={handleLoadVideo}
+          onClick={() => {
+            const id = inputValue.split("v=")[1]
+            if (id) setVideoId(id)
+          }}
         >
           불러오기
         </button>
       </section>
 
-      <section className="relative overflow-hidden rounded-2xl border bg-black">
+
+      {/* player */}
+      <div className="overflow-hidden rounded-xl border">
         <YouTube
           videoId={videoId}
           onReady={onReady}
-          opts={{
-            width: "100%",
-            height: "390",
-            playerVars: {
-              playsinline: 1,
-            },
-          }}
           className="aspect-video w-full"
         />
+      </div>
 
-        {isCountingDown && countdownValue !== null && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/45">
-            <div className="rounded-full bg-white/90 px-8 py-5 text-5xl font-bold text-black shadow-lg">
-              {countdownValue}
-            </div>
-          </div>
-        )}
-      </section>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <button className="rounded-lg border px-4 py-3" onClick={handleSetA}>
-          A 설정
-        </button>
-        <button className="rounded-lg border px-4 py-3" onClick={handleSetB}>
-          B 설정
-        </button>
-        <button className="rounded-lg border px-4 py-3" onClick={() => seekBy(-5)}>
-          -5초
-        </button>
-        <button className="rounded-lg border px-4 py-3" onClick={() => seekBy(5)}>
-          +5초
-        </button>
-      </section>
+      {/* LOOP CONTROLLER */}
+      <section className="rounded-xl border p-4 space-y-3">
 
-      <section className="rounded-2xl border p-4">
-        <h2 className="mb-3 text-lg font-semibold">A/B 미세 조정</h2>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-xl border p-3">
-            <p className="mb-3 font-medium">A 지점</p>
-            <p className="mb-3 text-sm text-gray-600">
-              현재 A: {pointA !== null ? `${formatTime(pointA)} (${formatTimeWithMs(pointA)})` : "-"}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                onClick={() => adjustPointA(-FINE_STEP)}
-                disabled={pointA === null}
-              >
-                A -0.5s
-              </button>
-              <button
-                className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                onClick={() => adjustPointA(FINE_STEP)}
-                disabled={pointA === null}
-              >
-                A +0.5s
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border p-3">
-            <p className="mb-3 font-medium">B 지점</p>
-            <p className="mb-3 text-sm text-gray-600">
-              현재 B: {pointB !== null ? `${formatTime(pointB)} (${formatTimeWithMs(pointB)})` : "-"}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                onClick={() => adjustPointB(-FINE_STEP)}
-                disabled={pointB === null}
-              >
-                B -0.5s
-              </button>
-              <button
-                className="rounded-lg border px-3 py-2 text-sm disabled:opacity-50"
-                onClick={() => adjustPointB(FINE_STEP)}
-                disabled={pointB === null}
-              >
-                B +0.5s
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border p-4">
-        <h2 className="mb-3 text-lg font-semibold">카운트다운 옵션</h2>
-
-        <div className="flex flex-col gap-3">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={useCountIn}
-              onChange={(e) => setUseCountIn(e.target.checked)}
-            />
-            <span className="text-sm">Loop 시작 전에 카운트다운 사용</span>
-          </label>
-
-          <div className="flex flex-wrap gap-2">
-            {[2, 3].map((sec) => {
-              const active = countInSeconds === sec
-              return (
-                <button
-                  key={sec}
-                  className={`rounded-lg px-4 py-2 text-sm ${
-                    active ? "bg-black text-white" : "border bg-white text-black"
-                  }`}
-                  onClick={() => setCountInSeconds(sec)}
-                  disabled={!useCountIn}
-                >
-                  {sec}초
-                </button>
-              )
-            })}
-          </div>
-
-          <p className="text-sm text-gray-600">
-            현재 설정: {useCountIn ? `${countInSeconds}초 카운트다운` : "사용 안 함"}
-          </p>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-2xl border p-4">
-        <div className="flex flex-wrap gap-2">
-          {SPEED_OPTIONS.map((rate) => {
-            const active = playbackRate === rate
-            return (
-              <button
-                key={rate}
-                className={`rounded-lg px-4 py-2 text-sm ${
-                  active ? "bg-blue-600 text-white" : "border bg-white text-black"
-                }`}
-                onClick={() => setSpeed(rate)}
-              >
-                {rate}x
-              </button>
-            )
-          })}
-        </div>
-
-        <button
-          className="rounded-lg bg-blue-600 px-4 py-3 text-white disabled:opacity-50"
-          onClick={handleToggleLoop}
-          disabled={!canLoop}
+        <div
+          ref={progressBarRef}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopDrag}
+          className="relative h-4 w-full rounded-full bg-gray-200"
         >
-          {isLooping || isCountingDown ? "Loop 끄기" : "Loop 켜기"}
-        </button>
 
-        <div className="text-sm leading-7">
-          <p>현재 시간: {formatTime(currentTime)}</p>
-          <p>A: {pointA !== null ? formatTime(pointA) : "-"}</p>
-          <p>B: {pointB !== null ? formatTime(pointB) : "-"}</p>
-          <p>재생 속도: {playbackRate}x</p>
-          <p>Loop 상태: {isLooping ? "ON" : isCountingDown ? "COUNTDOWN" : "OFF"}</p>
+          <div
+            className="absolute h-4 rounded-full bg-gray-400"
+            style={{ width: `${progressPercent}%` }}
+          />
+
+          {canLoop && (
+            <div
+              className="absolute h-4 cursor-grab rounded-full bg-blue-500/70"
+              style={{ left: `${loopStartPercent}%`, width: `${loopWidth}%` }}
+              onPointerDown={() => setDragTarget("range")}
+            />
+          )}
+
+          {pointA !== null && (
+            <button
+              onPointerDown={() => setDragTarget("a")}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600"
+              style={{
+                left: `${loopStartPercent}%`,
+                top: "50%",
+                width: HANDLE,
+                height: HANDLE,
+              }}
+            />
+          )}
+
+          {pointB !== null && (
+            <button
+              onPointerDown={() => setDragTarget("b")}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-600"
+              style={{
+                left: `${loopEndPercent}%`,
+                top: "50%",
+                width: HANDLE,
+                height: HANDLE,
+              }}
+            />
+          )}
+
+          <div
+            className="absolute h-5 w-1 bg-red-500"
+            style={{ left: `${progressPercent}%` }}
+          />
         </div>
-      </section>
 
-      <section className="rounded-2xl border p-4">
-        <h2 className="mb-3 text-lg font-semibold">구간 저장</h2>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        {/* A/B buttons */}
+        <div className="flex flex-wrap gap-2">
+          <button className="border px-3 py-2 rounded" onClick={() => setPointA(currentTime)}>
+            A 설정
+          </button>
+
+          <button className="border px-3 py-2 rounded" onClick={() => setPointB(currentTime)}>
+            B 설정
+          </button>
+
+          <button className="border px-3 py-2 rounded" onClick={() => seekTo(currentTime - 5)}>
+            -5초
+          </button>
+
+          <button className="border px-3 py-2 rounded" onClick={() => seekTo(currentTime + 5)}>
+            +5초
+          </button>
+        </div>
+
+
+        {/* SAVE */}
+        <div className="flex gap-2">
           <input
-            className="flex-1 rounded-lg border px-3 py-2"
-            placeholder="구간 이름 예: 인트로, 후렴, 솔로"
+            className="flex-1 border rounded px-3 py-2"
+            placeholder="구간 이름"
             value={segmentTitle}
             onChange={(e) => setSegmentTitle(e.target.value)}
           />
+
           <button
-            className="rounded-lg bg-green-600 px-4 py-2 text-white"
-            onClick={handleSaveSegment}
+            disabled={!canLoop}
+            onClick={handleSave}
+            className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
           >
-            현재 구간 저장
+            저장
           </button>
         </div>
+
       </section>
 
-      <section className="rounded-2xl border p-4">
-        <h2 className="mb-3 text-lg font-semibold">저장된 구간</h2>
 
-        {currentVideoSegments.length === 0 ? (
-          <p className="text-sm text-gray-500">이 영상에 저장된 구간이 아직 없습니다.</p>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {currentVideoSegments.map((segment) => (
-              <div
-                key={segment.id}
-                className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium">{segment.title}</p>
-                  <p className="text-sm text-gray-600">
-                    {formatTime(segment.start)} - {formatTime(segment.end)}
-                  </p>
-                </div>
+      {/* PLAYBACK */}
+      <section className="flex flex-wrap gap-2">
+        {SPEED_OPTIONS.map((r) => (
+          <button
+            key={r}
+            onClick={() => setSpeed(r)}
+            className={`px-3 py-2 rounded border ${
+              playbackRate === r ? "bg-blue-600 text-white" : ""
+            }`}
+          >
+            {r}x
+          </button>
+        ))}
 
-                <div className="flex gap-2">
-                  <button
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    onClick={() => handleLoadSegment(segment)}
-                  >
-                    불러오기
-                  </button>
-                  <button
-                    className="rounded-lg border px-3 py-2 text-sm"
-                    onClick={() => handleDeleteSegment(segment.id)}
-                  >
-                    삭제
-                  </button>
-                </div>
-              </div>
-            ))}
+        <button
+          onClick={toggleLoop}
+          disabled={!canLoop}
+          className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+        >
+          {isLooping ? "Loop OFF" : "Loop ON"}
+        </button>
+      </section>
+
+
+      {/* SAVED SEGMENTS */}
+      <section className="space-y-2">
+        <h2 className="font-semibold">저장된 구간</h2>
+
+        {savedSegments.map((s) => (
+          <div key={s.id} className="flex justify-between border rounded p-2">
+
+            <div>
+              <p className="font-medium">{s.title}</p>
+              <p className="text-sm text-gray-500">{format(s.start)} - {format(s.end)}</p>
+            </div>
+
+            <button
+              className="border px-2 rounded"
+              onClick={() => {
+                setPointA(s.start)
+                setPointB(s.end)
+                seekTo(s.start)
+              }}
+            >
+              불러오기
+            </button>
+
           </div>
-        )}
+        ))}
       </section>
 
-      <section className="rounded-2xl border bg-gray-50 p-4">
-        <h2 className="mb-3 text-lg font-semibold">단축키</h2>
-        <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
-          <p><kbd className="rounded border px-2 py-1">Space</kbd> 재생/일시정지</p>
-          <p><kbd className="rounded border px-2 py-1">←</kbd> 5초 뒤로</p>
-          <p><kbd className="rounded border px-2 py-1">→</kbd> 5초 앞으로</p>
-          <p><kbd className="rounded border px-2 py-1">A</kbd> A 설정</p>
-          <p><kbd className="rounded border px-2 py-1">B</kbd> B 설정</p>
-          <p><kbd className="rounded border px-2 py-1">R</kbd> Loop 토글</p>
-          <p><kbd className="rounded border px-2 py-1">S</kbd> 구간 저장</p>
-          <p><kbd className="rounded border px-2 py-1">-</kbd> 속도 낮추기</p>
-          <p><kbd className="rounded border px-2 py-1">+</kbd> 속도 높이기</p>
-          <p><kbd className="rounded border px-2 py-1">Esc</kbd> Loop/카운트다운 끄기</p>
-          <p><kbd className="rounded border px-2 py-1">Shift + ←</kbd> A -0.5초</p>
-          <p><kbd className="rounded border px-2 py-1">Shift + →</kbd> A +0.5초</p>
-          <p><kbd className="rounded border px-2 py-1">Alt + ←</kbd> B -0.5초</p>
-          <p><kbd className="rounded border px-2 py-1">Alt + →</kbd> B +0.5초</p>
+
+      {/* SHORTCUT MODAL */}
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white rounded-xl p-6 w-80 space-y-3">
+
+            <h3 className="font-semibold">단축키</h3>
+
+            <ul className="text-sm space-y-1">
+              <li>Space — 재생/정지</li>
+              <li>← / → — 5초 이동</li>
+              <li>A / B — 포인트 설정</li>
+              <li>R — 루프 토글</li>
+              <li>S — 구간 저장</li>
+              <li>- / + — 속도</li>
+            </ul>
+
+            <button
+              className="w-full border rounded py-2"
+              onClick={() => setShowShortcuts(false)}
+            >
+              닫기
+            </button>
+
+          </div>
         </div>
-      </section>
+      )}
+
+
     </main>
   )
 }
