@@ -13,9 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://youtube-looper.vercel.app"),
   title: "YouTube Looper - 유튜브 구간 반복 재생",
   description:
-    "유튜브 영상의 원하는 구간을 설정하고 반복 재생할 수 있는 무료 도구입니다. A/B 구간 반복, 속도 조절, 구간 저장 기능을 제공합니다.",
+    "기타 연습, 베이스 연습, 드럼, 피아노 등 악기 연습과 음악 연습에 최적화된 유튜브 구간 반복 재생 도구입니다. A/B 구간 반복, 속도 조절, 구간 저장, 재생 목록 관리 기능을 무료로 제공합니다.",
   keywords: [
     "유튜브 구간 반복",
     "YouTube loop",
@@ -23,13 +24,37 @@ export const metadata: Metadata = {
     "유튜브 루프",
     "구간 반복 재생",
     "youtube repeat",
+    "기타 연습",
+    "베이스 연습",
+    "악기 연습",
+    "음악 연습",
+    "드럼 연습",
+    "피아노 연습",
+    "구간 루프",
+    "카피 연습",
+    "커버 연습",
   ],
   openGraph: {
     title: "YouTube Looper - 유튜브 구간 반복 재생",
     description:
-      "유튜브 영상의 원하는 구간을 설정하고 반복 재생할 수 있는 무료 도구입니다.",
+      "기타, 베이스, 드럼, 피아노 등 악기 연습에 최적화된 유튜브 구간 반복 재생 도구. A/B 반복, 속도 조절, 구간 저장까지.",
     type: "website",
     locale: "ko_KR",
+    siteName: "YouTube Looper",
+    url: "https://youtube-looper.vercel.app",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "YouTube Looper - 유튜브 구간 반복 재생",
+    description:
+      "기타, 베이스, 악기 연습에 최적화된 유튜브 구간 반복 재생. A/B 구간, 속도 조절, 구간 저장 지원.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://youtube-looper.vercel.app",
   },
 };
 
