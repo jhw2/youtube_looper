@@ -90,7 +90,7 @@ export default function Home() {
 
   const extractVideoId = (value: string): string | null => {
     try {
-      const url = new URL(value.trim())
+      const url = new URL(value)
 
       if (url.hostname.includes("youtu.be")) {
         return url.pathname.replace("/", "") || null
@@ -101,9 +101,7 @@ export default function Home() {
           const parts = url.pathname.split("/")
           return parts[2] || null
         }
-
-        const v = url.searchParams.get("v")
-        return v || null
+        return url.searchParams.get("v")
       }
 
       return null
@@ -112,25 +110,6 @@ export default function Home() {
     }
   }
 
-  const handleLoadVideo = () => {
-    const trimmed = inputValue.trim()
-    if (!trimmed) return
-
-    const extracted = extractVideoId(trimmed)
-
-    if (!extracted) {
-      alert("올바른 유튜브 링크를 넣어주세요.")
-      return
-    }
-
-    setVideoId(extracted)
-    setCurrentTime(0)
-    setDuration(0)
-    setPointA(null)
-    setPointB(null)
-    setIsLooping(false)
-    restoreTimeRef.current = 0
-  }
   const clamp = (value: number) => Math.max(0, Math.min(value, duration || value))
 
   const seekTo = (time: number) => {
@@ -389,6 +368,124 @@ export default function Home() {
     })
   }
 
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const isTyping =
+        target &&
+        (
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable
+        )
+
+      // input 포커스 중에도 Ctrl/Cmd 조합은 동작
+      if (isTyping) {
+        const mod = e.ctrlKey || e.metaKey
+        if (!mod) return
+
+        switch (e.key.toLowerCase()) {
+          case "a":
+            e.preventDefault()
+            ;(target as HTMLElement)?.blur()
+            setPointA(currentTime)
+            return
+          case "b":
+            e.preventDefault()
+            ;(target as HTMLElement)?.blur()
+            setPointB(currentTime)
+            return
+          case "s":
+            e.preventDefault()
+            ;(target as HTMLElement)?.blur()
+            handleSave()
+            return
+          case "r":
+            e.preventDefault()
+            ;(target as HTMLElement)?.blur()
+            toggleLoop()
+            return
+          default:
+            return
+        }
+      }
+
+      switch (e.key) {
+        case "a":
+        case "A":
+          e.preventDefault()
+          setPointA(currentTime)
+          break
+
+        case "b":
+        case "B":
+          e.preventDefault()
+          setPointB(currentTime)
+          break
+
+        case "r":
+        case "R":
+          e.preventDefault()
+          toggleLoop()
+          break
+
+        case "s":
+        case "S":
+          e.preventDefault()
+          handleSave()
+          break
+
+        case " ":
+          e.preventDefault()
+          togglePlayPause()
+          break
+
+        case "ArrowLeft":
+          e.preventDefault()
+          seekTo(currentTime - 5)
+          break
+
+        case "ArrowRight":
+          e.preventDefault()
+          seekTo(currentTime + 5)
+          break
+
+        case "-":
+        case "_": {
+          e.preventDefault()
+          const currentIndex = SPEED_OPTIONS.indexOf(playbackRate)
+          if (currentIndex > 0) {
+            setSpeed(SPEED_OPTIONS[currentIndex - 1])
+          }
+          break
+        }
+
+        case "=":
+        case "+": {
+          e.preventDefault()
+          const currentIndex = SPEED_OPTIONS.indexOf(playbackRate)
+          if (currentIndex < SPEED_OPTIONS.length - 1) {
+            setSpeed(SPEED_OPTIONS[currentIndex + 1])
+          }
+          break
+        }
+
+        case "Escape":
+          e.preventDefault()
+          setIsLooping(false)
+          break
+
+        default:
+          break
+      }
+    }
+
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [currentTime, playbackRate, pointA, pointB, isLooping])
+
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 bg-white p-3 sm:p-4">
       <header className="flex items-center justify-between gap-3">
@@ -419,7 +516,40 @@ export default function Home() {
         </button>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border bg-black">
+            <section className="sticky bottom-0 z-40 -mx-3 border-t bg-white/95 p-3 backdrop-blur sm:static sm:mx-0 sm:rounded-2xl sm:border sm:p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">재생 컨트롤</h2>
+          <p className="text-xs text-gray-500">모바일 엄지 조작용</p>
+        </div>
+
+        <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
+          <button
+            onClick={togglePlayPause}
+            className="rounded-xl border px-3 py-3 text-sm"
+          >
+            재생
+          </button>
+          <button
+            onClick={toggleLoop}
+            disabled={!canLoop}
+            className="rounded-xl bg-blue-600 px-3 py-3 text-sm text-white disabled:opacity-50"
+          >
+            {isLooping ? "Loop OFF" : "Loop ON"}
+          </button>
+
+          {SPEED_OPTIONS.map((rate) => (
+            <button
+              key={rate}
+              onClick={() => setSpeed(rate)}
+              className={`rounded-xl border px-3 py-3 text-sm ${playbackRate === rate ? "bg-black text-white" : "bg-white"}`}
+            >
+              {rate}x
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden rounded-2xl border bg-black">
         <YouTube
           videoId={videoId}
           onReady={onReady}
@@ -428,10 +558,14 @@ export default function Home() {
             height: "390",
             playerVars: {
               playsinline: 1,
-              origin: typeof window !== "undefined" ? window.location.origin : undefined,
             },
           }}
           className="aspect-video w-full"
+        />
+        {/* 투명 오버레이: iframe이 포커스를 가져가지 못하게 차단, 클릭 시 재생/일시정지 */}
+        <div
+          className="absolute inset-0 z-10 cursor-pointer"
+          onClick={togglePlayPause}
         />
       </section>
 
@@ -587,39 +721,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="sticky bottom-0 z-40 -mx-3 border-t bg-white/95 p-3 backdrop-blur sm:static sm:mx-0 sm:rounded-2xl sm:border sm:p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">재생 컨트롤</h2>
-          <p className="text-xs text-gray-500">모바일 엄지 조작용</p>
-        </div>
-
-        <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
-          <button
-            onClick={togglePlayPause}
-            className="rounded-xl border px-3 py-3 text-sm"
-          >
-            재생
-          </button>
-          <button
-            onClick={toggleLoop}
-            disabled={!canLoop}
-            className="rounded-xl bg-blue-600 px-3 py-3 text-sm text-white disabled:opacity-50"
-          >
-            {isLooping ? "Loop OFF" : "Loop ON"}
-          </button>
-
-          {SPEED_OPTIONS.map((rate) => (
-            <button
-              key={rate}
-              onClick={() => setSpeed(rate)}
-              className={`rounded-xl border px-3 py-3 text-sm ${playbackRate === rate ? "bg-black text-white" : "bg-white"}`}
-            >
-              {rate}x
-            </button>
-          ))}
-        </div>
-      </section>
-
       <section className="space-y-2 rounded-2xl border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">저장된 구간</h2>
@@ -668,6 +769,7 @@ export default function Home() {
               <p>• 파란 구간 드래그: 루프 전체 이동</p>
               <p>• 모바일에서는 아래 고정 컨트롤로 재생/루프/속도 조절</p>
               <p>• 마지막으로 보던 영상과 위치는 새로고침 후에도 유지</p>
+              <p>• 데스크탑: A / B / R / S / Space / 방향키 단축키 지원</p>
             </div>
             <button
               className="mt-4 w-full rounded-xl border px-4 py-3"
