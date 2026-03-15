@@ -82,6 +82,9 @@ export default function Home() {
   const [editingTitle, setEditingTitle] = useState("")
   const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([])
   const [showVideoList, setShowVideoList] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showFsControls, setShowFsControls] = useState(true)
+  const fsHideTimerRef = useRef<number | null>(null)
 
   const currentVideoSegments = useMemo(
     () => savedSegments.filter((segment) => segment.videoId === videoId),
@@ -247,6 +250,43 @@ export default function Home() {
     localStorage.setItem(PLAYER_STATE_KEY, JSON.stringify(payload))
   }, [videoId, inputValue, currentTime, pointA, pointB, playbackRate, segmentTitle, loopStartDelay, seekStep])
 
+
+  const startLoopWithDelay = () => {
+    if (!canLoop || pointA === null) return
+
+    clearCountdown()
+
+    const player = playerRef.current
+    if (!player) return
+
+    if (loopStartDelay <= 0) {
+      seekTo(pointA)
+      player.playVideo()
+      setIsLooping(true)
+      return
+    }
+
+    player.pauseVideo()
+    setIsLooping(false)
+    setCountdown(loopStartDelay)
+
+    countdownIntervalRef.current = window.setInterval(() => {
+      setCountdown((prev) => {
+        if (prev === null) return null
+        if (prev <= 1) return null
+        return prev - 1
+      })
+    }, 1000)
+
+    countdownTimeoutRef.current = window.setTimeout(() => {
+      clearCountdown()
+      seekTo(pointA)
+      player.playVideo()
+      setIsLooping(true)
+    }, loopStartDelay * 1000)
+  }
+
+
   useEffect(() => {
     const id = window.setInterval(() => {
       const player = playerRef.current
@@ -259,12 +299,13 @@ export default function Home() {
       setDuration((prev) => (prev === total ? prev : total))
 
       if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
+        startLoopWithDelay();
         player.seekTo(pointA, true)
       }
     }, 200)
 
     return () => window.clearInterval(id)
-  }, [isLooping, pointA, pointB])
+  }, [isLooping, pointA, pointB, startLoopWithDelay])
 
   useEffect(() => {
     const stopDrag = () => {
@@ -387,42 +428,6 @@ export default function Home() {
       player.playVideo()
     }
   }
-
-  const startLoopWithDelay = () => {
-    if (!canLoop || pointA === null) return
-
-    clearCountdown()
-
-    const player = playerRef.current
-    if (!player) return
-
-    if (loopStartDelay <= 0) {
-      seekTo(pointA)
-      player.playVideo()
-      setIsLooping(true)
-      return
-    }
-
-    player.pauseVideo()
-    setIsLooping(false)
-    setCountdown(loopStartDelay)
-
-    countdownIntervalRef.current = window.setInterval(() => {
-      setCountdown((prev) => {
-        if (prev === null) return null
-        if (prev <= 1) return null
-        return prev - 1
-      })
-    }, 1000)
-
-    countdownTimeoutRef.current = window.setTimeout(() => {
-      clearCountdown()
-      seekTo(pointA)
-      player.playVideo()
-      setIsLooping(true)
-    }, loopStartDelay * 1000)
-  }
-
   const toggleLoop = () => {
     if (!canLoop) return
 
@@ -514,7 +519,7 @@ export default function Home() {
   }
 
   const adjustPointA = (delta: number) => {
-    stopLoop()
+    clearCountdown()
 
     setPointA((prev) => {
       if (prev === null) return prev
@@ -525,7 +530,7 @@ export default function Home() {
   }
 
   const adjustPointB = (delta: number) => {
-    stopLoop()
+    clearCountdown()
 
     setPointB((prev) => {
       if (prev === null) return prev
@@ -535,6 +540,59 @@ export default function Home() {
     })
   }
 
+  const playerContainerRef = useRef<HTMLDivElement | null>(null)
+
+  const toggleFullscreen = async () => {
+    const el = playerContainerRef.current
+    if (!el) return
+
+    try {
+      if (!document.fullscreenElement) {
+        await el.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch (err) {
+      console.error("전체화면 전환 실패:", err)
+    }
+  }
+
+  const clearFsHideTimer = () => {
+    if (fsHideTimerRef.current !== null) {
+      window.clearTimeout(fsHideTimerRef.current)
+      fsHideTimerRef.current = null
+    }
+  }
+
+  const resetFsHideTimer = () => {
+    clearFsHideTimer()
+    fsHideTimerRef.current = window.setTimeout(() => {
+      setShowFsControls(false)
+    }, 3000)
+  }
+
+  const handleFsInteraction = () => {
+    if (!isFullscreen) return
+    setShowFsControls(true)
+    resetFsHideTimer()
+  }
+
+  useEffect(() => {
+    const handler = () => {
+      const fs = !!document.fullscreenElement
+      setIsFullscreen(fs)
+      if (fs) {
+        setShowFsControls(true)
+        resetFsHideTimer()
+      } else {
+        clearFsHideTimer()
+      }
+    }
+    document.addEventListener("fullscreenchange", handler)
+    return () => document.removeEventListener("fullscreenchange", handler)
+  }, [resetFsHideTimer])
+
+  // 단축키
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
@@ -553,6 +611,7 @@ export default function Home() {
       const isB = code === "KeyB" || key === "b" || key === "ㅠ"
       const isL = code === "KeyL" || key === "l" || key === "ㅣ"
       const isS = code === "KeyS" || key === "s" || key === "ㄴ"
+      const isF = code === "KeyF" || key === "f" || key === "ㄹ"
 
       if (isTyping) {
         const mod = e.ctrlKey || e.metaKey
@@ -560,30 +619,34 @@ export default function Home() {
 
         if (isA) {
           e.preventDefault()
-          ;(target as HTMLElement)?.blur()
+            ; (target as HTMLElement)?.blur()
           clearCountdown()
-          setIsLooping(false)
           setPointA(currentTime)
           return
         }
         if (isB) {
           e.preventDefault()
-          ;(target as HTMLElement)?.blur()
+            ; (target as HTMLElement)?.blur()
           clearCountdown()
-          setIsLooping(false)
           setPointB(currentTime)
           return
         }
         if (isS) {
           e.preventDefault()
-          ;(target as HTMLElement)?.blur()
+            ; (target as HTMLElement)?.blur()
           handleSave()
           return
         }
         if (isL) {
           e.preventDefault()
-          ;(target as HTMLElement)?.blur()
+            ; (target as HTMLElement)?.blur()
           toggleLoop()
+          return
+        }
+        if (isF) {
+          e.preventDefault()
+            ; (target as HTMLElement)?.blur()
+          toggleFullscreen()
           return
         }
         return
@@ -592,12 +655,10 @@ export default function Home() {
       if (isA) {
         e.preventDefault()
         clearCountdown()
-        setIsLooping(false)
         setPointA(currentTime)
       } else if (isB) {
         e.preventDefault()
         clearCountdown()
-        setIsLooping(false)
         setPointB(currentTime)
       } else if (isL) {
         e.preventDefault()
@@ -605,25 +666,32 @@ export default function Home() {
       } else if (isS) {
         e.preventDefault()
         handleSave()
+      } else if (isF) {
+        e.preventDefault()
+        toggleFullscreen()
       } else if (code === "Space" || key === " ") {
         e.preventDefault()
         togglePlayPause()
       } else if (code === "ArrowLeft") {
         e.preventDefault()
-        clearCountdown()
-        setIsLooping(false)
         seekTo(currentTime - seekStep)
       } else if (code === "ArrowRight") {
         e.preventDefault()
-        clearCountdown()
-        setIsLooping(false)
         seekTo(currentTime + seekStep)
       } else if (key === "-" || key === "_") {
         e.preventDefault()
-        if (playbackRate > 0.25) setSpeed(Math.round(Math.max(0.25, playbackRate - 0.05) * 100) / 100)
+        if (playbackRate > 0.25) {
+          setSpeed(
+            Math.round(Math.max(0.25, playbackRate - 0.05) * 100) / 100
+          )
+        }
       } else if (key === "=" || key === "+") {
         e.preventDefault()
-        if (playbackRate < 3) setSpeed(Math.round(Math.min(3, playbackRate + 0.05) * 100) / 100)
+        if (playbackRate < 3) {
+          setSpeed(
+            Math.round(Math.min(3, playbackRate + 0.05) * 100) / 100
+          )
+        }
       } else if (key === "escape") {
         e.preventDefault()
         clearCountdown()
@@ -671,8 +739,9 @@ export default function Home() {
       </section>
 
 
-      {/* Player Controls - Sticky */}
-      <section className="sticky bottom-0 z-40 -mx-3 rounded-t-3xl border-t border-purple-100 bg-white/90 p-3 shadow-lg backdrop-blur sm:static sm:mx-0 sm:rounded-3xl sm:border sm:border-purple-100 sm:p-4 sm:shadow-sm">
+      {/* Saved Segments - Sticky Top */}
+
+      <section className="sticky top-0 z-50 -mx-3 space-y-2 rounded-b-3xl border-b border-purple-100 bg-white/90 p-3 shadow-md backdrop-blur sm:mx-0 sm:rounded-3xl sm:border sm:border-purple-100 sm:shadow-sm">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex gap-1.5">
             <button
@@ -702,7 +771,7 @@ export default function Home() {
             >
               -
             </button>
-            <span className="min-w-[2.5rem] text-center text-xs font-bold text-purple-700">{playbackRate}x</span>
+            <span className="min-w-[2rem] text-center text-xs font-bold text-purple-700">{playbackRate}x</span>
             <button
               onClick={() => setSpeed(Math.round(Math.min(3, playbackRate + 0.05) * 100) / 100)}
               disabled={playbackRate >= 3}
@@ -749,101 +818,105 @@ export default function Home() {
             ))}
           </select>
         </div>
-      </section>
 
-         {/* Saved Segments - Sticky Top */}
-      {currentVideoSegments.length > 0 && (
-        <section className="sticky top-0 z-50 -mx-3 space-y-2 rounded-b-3xl border-b border-purple-100 bg-white/90 p-3 shadow-md backdrop-blur sm:mx-0 sm:rounded-3xl sm:border sm:border-purple-100 sm:shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-purple-600">저장된 구간</h2>
-            <p className="text-xs text-purple-300">{currentVideoSegments.length}개</p>
-          </div>
+        {currentVideoSegments.length > 0 && (
+          <>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-purple-600">저장된 구간</h2>
+              <p className="text-xs text-purple-300">{currentVideoSegments.length}개</p>
+            </div>
 
-          <div className="flex flex-col gap-2">
-            {currentVideoSegments.map((segment) => {
-              const isActive = pointA === segment.start && pointB === segment.end
+            <div className="flex flex-col gap-2">
+              {currentVideoSegments.map((segment) => {
+                const isActive = pointA === segment.start && pointB === segment.end
 
-              return (
-                <div
-                  key={segment.id}
-                  className={`flex items-center justify-between gap-2 rounded-2xl border-2 p-2 transition ${
-                    isActive
+                return (
+                  <div
+                    key={segment.id}
+                    className={`flex items-center justify-between gap-2 rounded-2xl border-2 p-2 transition ${isActive
                       ? "border-purple-400 bg-purple-100/80 shadow-sm"
                       : "border-purple-50 bg-white/50 opacity-60 hover:border-purple-200 hover:opacity-100"
-                  }`}
-                >
-                  {editingSegmentId === segment.id ? (
-                    <div className="flex min-w-0 flex-1 gap-2">
-                      <input
-                        className="min-w-0 flex-1 rounded-xl border-2 border-purple-300 bg-white px-3 py-1.5 text-sm text-purple-900 outline-none focus:border-purple-500"
-                        type="search"
-                        value={editingTitle}
-                        onChange={(e) => setEditingTitle(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEditSegment()
-                          if (e.key === "Escape") cancelEditSegment()
-                        }}
-                        autoFocus
-                      />
-                      <button
-                        className="shrink-0 rounded-xl bg-purple-500 px-3 py-1.5 text-xs font-semibold text-white active:scale-95"
-                        onClick={saveEditSegment}
-                      >
-                        저장
-                      </button>
-                      <button
-                        className="shrink-0 rounded-xl border border-purple-200 px-3 py-1.5 text-xs text-purple-500 active:scale-95"
-                        onClick={cancelEditSegment}
-                      >
-                        취소
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() => {
-                          stopLoop()
-                          setPointA(segment.start)
-                          setPointB(segment.end)
-                          seekTo(segment.start)
-                        }}
-                      >
-                        <p className={`truncate text-sm font-semibold ${isActive ? "text-purple-800" : "text-purple-600"}`}>
-                          {segment.title}
-                        </p>
-                        <p className={`text-[11px] ${isActive ? "text-purple-500" : "text-purple-400"}`}>
-                          {format(segment.start)} - {format(segment.end)}
-                        </p>
-                      </button>
-                      <div className="flex shrink-0 gap-1.5">
+                      }`}
+                  >
+                    {editingSegmentId === segment.id ? (
+                      <div className="flex min-w-0 flex-1 gap-2">
+                        <input
+                          className="min-w-0 flex-1 rounded-xl border-2 border-purple-300 bg-white px-3 py-1.5 text-sm text-purple-900 outline-none focus:border-purple-500"
+                          type="search"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveEditSegment()
+                            if (e.key === "Escape") cancelEditSegment()
+                          }}
+                          autoFocus
+                        />
                         <button
-                          className="rounded-xl border-2 border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-600 transition hover:bg-purple-100 active:scale-95"
-                          onClick={() => startEditSegment(segment)}
+                          className="shrink-0 rounded-xl bg-purple-500 px-3 py-1.5 text-xs font-semibold text-white active:scale-95"
+                          onClick={saveEditSegment}
                         >
-                          수정
+                          저장
                         </button>
                         <button
-                          className="rounded-xl border-2 border-pink-100 bg-pink-50 px-2.5 py-1.5 text-xs font-medium text-pink-500 transition hover:bg-pink-100 active:scale-95"
-                          onClick={() =>
-                            setSavedSegments((prev) => prev.filter((item) => item.id !== segment.id))
-                          }
+                          className="shrink-0 rounded-xl border border-purple-200 px-3 py-1.5 text-xs text-purple-500 active:scale-95"
+                          onClick={cancelEditSegment}
                         >
-                          삭제
+                          취소
                         </button>
                       </div>
-                    </>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
+                    ) : (
+                      <>
+                        <button
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => {
+                            clearCountdown()
+                            setPointA(segment.start)
+                            setPointB(segment.end)
+                            seekTo(segment.start)
+                          }}
+                        >
+                          <p className={`truncate text-sm font-semibold ${isActive ? "text-purple-800" : "text-purple-600"}`}>
+                            {segment.title}
+                          </p>
+                          <p className={`text-[11px] ${isActive ? "text-purple-500" : "text-purple-400"}`}>
+                            {format(segment.start)} - {format(segment.end)}
+                          </p>
+                        </button>
+                        <div className="flex shrink-0 gap-1.5">
+                          <button
+                            className="rounded-xl border-2 border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-600 transition hover:bg-purple-100 active:scale-95"
+                            onClick={() => startEditSegment(segment)}
+                          >
+                            수정
+                          </button>
+                          <button
+                            className="rounded-xl border-2 border-pink-100 bg-pink-50 px-2.5 py-1.5 text-xs font-medium text-pink-500 transition hover:bg-pink-100 active:scale-95"
+                            onClick={() =>
+                              setSavedSegments((prev) => prev.filter((item) => item.id !== segment.id))
+                            }
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </section>
+
 
       {/* YouTube Player */}
-      <section className="relative overflow-hidden rounded-2xl border-2 border-purple-100 bg-black shadow-lg">
-        <div className="aspect-video w-full [&_iframe]:h-full [&_iframe]:w-full">
+      <section
+        ref={playerContainerRef}
+        onMouseMove={handleFsInteraction}
+        onTouchStart={handleFsInteraction}
+        className={`relative overflow-hidden rounded-2xl border-2 border-purple-100 bg-black shadow-lg ${isFullscreen ? "flex flex-col" : ""}`}
+      >
+        <div className={`${isFullscreen ? "flex-1" : "aspect-video"} w-full [&_iframe]:h-full [&_iframe]:w-full`}>
           <YouTube
             videoId={videoId}
             onReady={onReady}
@@ -858,10 +931,12 @@ export default function Home() {
           />
         </div>
 
-        <div
-          className="absolute inset-0 z-10 cursor-pointer"
-          onClick={togglePlayPause}
-        />
+        {!isFullscreen && (
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            onClick={togglePlayPause}
+          />
+        )}
 
         {countdown !== null && (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/40">
@@ -869,6 +944,139 @@ export default function Home() {
               <p className="text-sm text-purple-400">루프 시작까지</p>
               <p className="text-5xl font-extrabold text-purple-600">{countdown}</p>
             </div>
+          </div>
+        )}
+
+        {/* Fullscreen Overlay Controls */}
+        {isFullscreen && (
+          <div
+            onMouseMove={(e) => { e.stopPropagation(); handleFsInteraction() }}
+            onTouchStart={(e) => { e.stopPropagation(); handleFsInteraction() }}
+            className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-10 transition-opacity duration-300 ${showFsControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+          >
+            {/* Progress Bar */}
+            <div
+              ref={isFullscreen ? progressBarRef : undefined}
+              onPointerMove={handlePointerMove}
+              onClick={handleProgressTap}
+              className="relative mb-3 h-3 w-full touch-none rounded-full bg-white/30"
+            >
+              <div
+                className="absolute left-0 top-0 h-3 rounded-full bg-purple-400/70"
+                style={{ width: `${progressPercent}%` }}
+              />
+              {canLoop && (
+                <div
+                  className="absolute top-0 z-10 h-3 cursor-grab rounded-full bg-pink-400/60 active:cursor-grabbing"
+                  style={{ left: `${loopStartPercent}%`, width: `${loopWidth}%` }}
+                  onPointerDown={(e) => { e.stopPropagation(); startDrag("range", e.clientX) }}
+                />
+              )}
+              {pointA !== null && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrag("a", e.clientX) }}
+                  className="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-pink-500 shadow-lg"
+                  style={{ left: `${loopStartPercent}%`, width: HANDLE, height: HANDLE }}
+                >
+                  <span className="text-[10px] font-extrabold text-white">A</span>
+                </button>
+              )}
+              {pointB !== null && (
+                <button
+                  type="button"
+                  onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrag("b", e.clientX) }}
+                  className="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-purple-500 shadow-lg"
+                  style={{ left: `${loopEndPercent}%`, width: HANDLE, height: HANDLE }}
+                >
+                  <span className="text-[10px] font-extrabold text-white">B</span>
+                </button>
+              )}
+              <div
+                className="absolute top-[-3px] z-30 h-5 w-1 -translate-x-1/2 rounded-full bg-white"
+                style={{ left: `${progressPercent}%` }}
+              />
+            </div>
+
+            {/* Controls Row */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={togglePlayPause} className="rounded-lg bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/30 active:scale-95">
+                재생 / 정지
+              </button>
+              <button onClick={toggleLoop} disabled={!canLoop} className="rounded-lg bg-purple-500/80 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-purple-500 active:scale-95 disabled:opacity-40">
+                {countdown !== null ? `${countdown}...` : isLooping ? "Loop OFF" : "Loop ON"}
+              </button>
+              <button onClick={() => { clearCountdown(); setPointA(currentTime) }} className="rounded-lg bg-pink-500/80 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-pink-500 active:scale-95">
+                A 설정
+              </button>
+              <button onClick={() => { clearCountdown(); setPointB(currentTime) }} className="rounded-lg bg-purple-500/80 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-purple-500 active:scale-95">
+                B 설정
+              </button>
+              <button onClick={() => { seekTo(currentTime - seekStep) }} className="rounded-lg bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/30 active:scale-95">
+                -{seekStep}초
+              </button>
+              <button onClick={() => { seekTo(currentTime + seekStep) }} className="rounded-lg bg-white/20 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/30 active:scale-95">
+                +{seekStep}초
+              </button>
+
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-white/70">속도</span>
+                <button onClick={() => setSpeed(Math.round(Math.max(0.25, playbackRate - 0.05) * 100) / 100)} className="rounded-lg bg-white/20 px-1.5 py-0.5 text-xs text-white hover:bg-white/30 active:scale-95">-</button>
+                <span className="min-w-[2rem] text-center text-xs font-bold text-white">{playbackRate}x</span>
+                <button onClick={() => setSpeed(Math.round(Math.min(3, playbackRate + 0.05) * 100) / 100)} className="rounded-lg bg-white/20 px-1.5 py-0.5 text-xs text-white hover:bg-white/30 active:scale-95">+</button>
+              </div>
+
+              <div className="ml-auto flex items-center gap-2 text-xs text-white/80">
+                <span>A: {pointA !== null ? formatPrecise(pointA) : "-"}</span>
+                <span>B: {pointB !== null ? formatPrecise(pointB) : "-"}</span>
+                <span>{format(currentTime)} / {duration > 0 ? format(duration) : "--:--"}</span>
+              </div>
+            </div>
+
+            {/* Save Segment in Fullscreen */}
+            <div className="mt-2 flex gap-1.5">
+              <input
+                className="min-w-0 flex-1 rounded-lg bg-white/20 px-3 py-1.5 text-xs text-white placeholder-white/50 outline-none backdrop-blur focus:bg-white/30"
+                placeholder="구간 이름"
+                value={segmentTitle}
+                onChange={(e) => setSegmentTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
+              />
+              <button
+                disabled={!canLoop}
+                onClick={handleSave}
+                className="shrink-0 rounded-lg bg-pink-500/80 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-pink-500 active:scale-95 disabled:opacity-40"
+              >
+                구간 저장
+              </button>
+            </div>
+
+            {/* Saved Segments in Fullscreen */}
+            {currentVideoSegments.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {currentVideoSegments.map((segment) => {
+                  const isActive = pointA === segment.start && pointB === segment.end
+                  return (
+                    <button
+                      key={segment.id}
+                      onClick={() => {
+                        clearCountdown()
+                        setPointA(segment.start)
+                        setPointB(segment.end)
+                        seekTo(segment.start)
+                      }}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium backdrop-blur transition active:scale-95 ${
+                        isActive
+                          ? "bg-pink-500/80 text-white"
+                          : "bg-white/20 text-white/80 hover:bg-white/30"
+                      }`}
+                    >
+                      {segment.title} <span className="text-white/60">{format(segment.start)}-{format(segment.end)}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -980,7 +1188,6 @@ export default function Home() {
             className="rounded-xl border-2 border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-600 transition hover:bg-pink-100 active:scale-95"
             onClick={() => {
               clearCountdown()
-              setIsLooping(false)
               setPointA(currentTime)
             }}
           >
@@ -991,7 +1198,6 @@ export default function Home() {
             className="rounded-xl border-2 border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-600 transition hover:bg-purple-100 active:scale-95"
             onClick={() => {
               clearCountdown()
-              setIsLooping(false)
               setPointB(currentTime)
             }}
           >
@@ -1001,8 +1207,6 @@ export default function Home() {
             title="단축키: ←"
             className="rounded-xl border-2 border-purple-100 bg-white/80 px-3 py-1.5 text-xs font-medium text-purple-500 transition hover:bg-purple-50 active:scale-95"
             onClick={() => {
-              clearCountdown()
-              setIsLooping(false)
               seekTo(currentTime - seekStep)
             }}
           >
@@ -1012,8 +1216,6 @@ export default function Home() {
             title="단축키: →"
             className="rounded-xl border-2 border-purple-100 bg-white/80 px-3 py-1.5 text-xs font-medium text-purple-500 transition hover:bg-purple-50 active:scale-95"
             onClick={() => {
-              clearCountdown()
-              setIsLooping(false)
               seekTo(currentTime + seekStep)
             }}
           >
@@ -1093,9 +1295,8 @@ export default function Home() {
 
       {/* Video List Slide Panel */}
       <div
-        className={`fixed right-0 top-0 z-[55] h-full w-72 transform border-l border-purple-100 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-300 ${
-          showVideoList ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed right-0 top-0 z-[55] h-full w-72 transform border-l border-purple-100 bg-white/95 shadow-2xl backdrop-blur transition-transform duration-300 ${showVideoList ? "translate-x-0" : "translate-x-full"
+          }`}
       >
         <div className="flex h-full flex-col p-4">
           <div className="mb-3 flex items-center justify-between">
@@ -1116,11 +1317,10 @@ export default function Home() {
                 {savedVideos.map((video) => (
                   <div
                     key={video.videoId}
-                    className={`group rounded-xl border-2 p-2 transition ${
-                      video.videoId === videoId
-                        ? "border-purple-400 bg-purple-50"
-                        : "border-purple-50 bg-white hover:border-purple-200"
-                    }`}
+                    className={`group rounded-xl border-2 p-2 transition ${video.videoId === videoId
+                      ? "border-purple-400 bg-purple-50"
+                      : "border-purple-50 bg-white hover:border-purple-200"
+                      }`}
                   >
                     <button
                       className="mb-1 block w-full overflow-hidden rounded-lg"
