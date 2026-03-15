@@ -932,10 +932,21 @@ export default function Home() {
         </div>
 
         {!isFullscreen && (
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            onClick={togglePlayPause}
-          />
+          <>
+            <div
+              className="absolute inset-0 z-10 cursor-pointer"
+              onClick={togglePlayPause}
+            />
+            <button
+              onClick={toggleFullscreen}
+              title="전체화면 (단축키: F)"
+              className="absolute right-2 top-2 z-20 rounded-lg bg-black/50 p-1.5 text-white transition hover:bg-black/70 active:scale-95"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path d="M3.75 3.75v4.5h1.5v-3h3v-1.5h-4.5zM11.75 3.75v1.5h3v3h1.5v-4.5h-4.5zM5.25 11.75h-1.5v4.5h4.5v-1.5h-3v-3zM16.25 11.75v3h-3v1.5h4.5v-4.5h-1.5z" />
+              </svg>
+            </button>
+          </>
         )}
 
         {countdown !== null && (
@@ -1383,6 +1394,7 @@ export default function Home() {
                   <p><kbd className="rounded border bg-white px-1">S</kbd> 구간 저장</p>
                   <p><kbd className="rounded border bg-white px-1">Space</kbd> 재생/정지</p>
                   <p><kbd className="rounded border bg-white px-1">Esc</kbd> Loop 끄기</p>
+                  <p><kbd className="rounded border bg-white px-1">F</kbd> 전체화면</p>
                   <p><kbd className="rounded border bg-white px-1">←</kbd><kbd className="rounded border bg-white px-1">→</kbd> 앞뒤 이동</p>
                   <p><kbd className="rounded border bg-white px-1">-</kbd><kbd className="rounded border bg-white px-1">+</kbd> 속도 조절</p>
                 </div>
