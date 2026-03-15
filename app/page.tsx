@@ -542,19 +542,17 @@ export default function Home() {
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null)
 
-  const toggleFullscreen = async () => {
-    const el = playerContainerRef.current
-    if (!el) return
-
-    try {
-      if (!document.fullscreenElement) {
-        await el.requestFullscreen()
+  const toggleFullscreen = () => {
+    setIsFullscreen((prev) => {
+      const next = !prev
+      if (next) {
+        setShowFsControls(true)
+        resetFsHideTimer()
       } else {
-        await document.exitFullscreen()
+        clearFsHideTimer()
       }
-    } catch (err) {
-      console.error("전체화면 전환 실패:", err)
-    }
+      return next
+    })
   }
 
   const clearFsHideTimer = () => {
@@ -578,19 +576,8 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const handler = () => {
-      const fs = !!document.fullscreenElement
-      setIsFullscreen(fs)
-      if (fs) {
-        setShowFsControls(true)
-        resetFsHideTimer()
-      } else {
-        clearFsHideTimer()
-      }
-    }
-    document.addEventListener("fullscreenchange", handler)
-    return () => document.removeEventListener("fullscreenchange", handler)
-  }, [resetFsHideTimer])
+    return () => clearFsHideTimer()
+  }, [])
 
   // 단축키
   useEffect(() => {
@@ -914,9 +901,9 @@ export default function Home() {
         ref={playerContainerRef}
         onMouseMove={handleFsInteraction}
         onTouchStart={handleFsInteraction}
-        className={`relative overflow-hidden rounded-2xl border-2 border-purple-100 bg-black shadow-lg ${isFullscreen ? "flex flex-col" : ""}`}
+        className={`overflow-hidden bg-black shadow-lg ${isFullscreen ? "fixed inset-0 z-[100] rounded-none border-0" : "relative rounded-2xl border-2 border-purple-100"}`}
       >
-        <div className={`${isFullscreen ? "flex-1" : "aspect-video"} w-full [&_iframe]:h-full [&_iframe]:w-full`}>
+        <div className={`${isFullscreen ? "absolute inset-0" : "aspect-video"} w-full [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full`}>
           <YouTube
             videoId={videoId}
             onReady={onReady}
@@ -931,22 +918,32 @@ export default function Home() {
           />
         </div>
 
-        {!isFullscreen && (
-          <>
-            <div
-              className="absolute inset-0 z-10 cursor-pointer"
-              onClick={togglePlayPause}
-            />
-            <button
-              onClick={toggleFullscreen}
-              title="전체화면 (단축키: F)"
-              className="absolute right-2 top-2 z-20 rounded-lg bg-black/50 p-1.5 text-white transition hover:bg-black/70 active:scale-95"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path d="M3.75 3.75v4.5h1.5v-3h3v-1.5h-4.5zM11.75 3.75v1.5h3v3h1.5v-4.5h-4.5zM5.25 11.75h-1.5v4.5h4.5v-1.5h-3v-3zM16.25 11.75v3h-3v1.5h4.5v-4.5h-1.5z" />
-              </svg>
-            </button>
-          </>
+        <div
+          className="absolute inset-0 z-10 cursor-pointer"
+          onClick={togglePlayPause}
+        />
+        {!isFullscreen ? (
+          <button
+            onClick={toggleFullscreen}
+            title="전체화면 (단축키: F)"
+            className="absolute right-2 top-2 z-20 flex items-center gap-1.5 rounded-xl bg-purple-500/80 px-3 py-1.5 text-xs font-semibold text-white shadow-lg transition hover:bg-purple-600 active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+              <path d="M3.75 3.75v4.5h1.5v-3h3v-1.5h-4.5zM11.75 3.75v1.5h3v3h1.5v-4.5h-4.5zM5.25 11.75h-1.5v4.5h4.5v-1.5h-3v-3zM16.25 11.75v3h-3v1.5h4.5v-4.5h-1.5z" />
+            </svg>
+            전체화면
+          </button>
+        ) : (
+          <button
+            onClick={toggleFullscreen}
+            title="전체화면 닫기 (단축키: F / Esc)"
+            className={`absolute right-3 top-3 z-40 flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur transition hover:bg-white/30 active:scale-95 ${showFsControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+              <path fillRule="evenodd" d="M4.28 4.28a.75.75 0 011.06 0L10 8.94l4.66-4.66a.75.75 0 111.06 1.06L11.06 10l4.66 4.66a.75.75 0 11-1.06 1.06L10 11.06l-4.66 4.66a.75.75 0 01-1.06-1.06L8.94 10 4.28 5.34a.75.75 0 010-1.06z" clipRule="evenodd" />
+            </svg>
+            닫기
+          </button>
         )}
 
         {countdown !== null && (
@@ -1046,13 +1043,6 @@ export default function Home() {
 
             {/* Save Segment in Fullscreen */}
             <div className="mt-2 flex gap-1.5">
-              <input
-                className="min-w-0 flex-1 rounded-lg bg-white/20 px-3 py-1.5 text-xs text-white placeholder-white/50 outline-none backdrop-blur focus:bg-white/30"
-                placeholder="구간 이름"
-                value={segmentTitle}
-                onChange={(e) => setSegmentTitle(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSave() }}
-              />
               <button
                 disabled={!canLoop}
                 onClick={handleSave}
