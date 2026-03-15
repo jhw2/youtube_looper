@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import YouTube, { YouTubeEvent } from "react-youtube"
 
 type PlayerLike = {
@@ -86,8 +85,6 @@ export default function Home() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showFsControls, setShowFsControls] = useState(true)
   const fsHideTimerRef = useRef<number | null>(null)
-  const searchParams = useSearchParams()
-
   const currentVideoSegments = useMemo(
     () => savedSegments.filter((segment) => segment.videoId === videoId),
     [savedSegments, videoId],
@@ -229,7 +226,7 @@ export default function Home() {
     }
 
     // 쿼리스트링 ?url= 로 유튜브 링크가 넘어오면 해당 영상을 로드
-    const urlParam = searchParams.get("url")
+    const urlParam = new URLSearchParams(window.location.search).get("url")
     if (urlParam) {
       const extracted = extractVideoId(urlParam)
       if (extracted) {
@@ -241,7 +238,6 @@ export default function Home() {
         restoreTimeRef.current = 0
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
