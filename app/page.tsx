@@ -828,19 +828,6 @@ export default function Home() {
         </button>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 px-4 py-3 text-xs text-zinc-300 shadow-[0_1px_2px_rgba(0,0,0,0.25)] sm:flex-row sm:items-center sm:justify-between">
-        <p>{t("safetyNotice")}</p>
-        <a
-          href={`https://www.youtube.com/watch?v=${videoId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 rounded-md border border-zinc-700 px-3 py-2 text-center font-medium text-zinc-100 transition hover:border-zinc-500 hover:bg-zinc-800"
-        >
-          {t("openOnYouTube")}
-        </a>
-      </section>
-
-
       {/* Saved Segments - Sticky Top */}
 
       {currentVideoSegments.length > 0 && (<section className="sticky top-0 z-50 -mx-3 space-y-3 border-y border-zinc-800 bg-[#0f0f0f]/95 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.35)] backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:p-4">
@@ -1459,6 +1446,20 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <footer className="pb-4 pt-1 text-[11px] text-zinc-500 sm:pb-2">
+        <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>{t("safetyNotice")}</p>
+          <a
+            href={`https://www.youtube.com/watch?v=${videoId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex shrink-0 items-center justify-center rounded-md border border-zinc-800 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900 hover:text-zinc-100"
+          >
+            {t("openOnYouTube")}
+          </a>
+        </div>
+      </footer>
     </main>
   )
 }
