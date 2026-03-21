@@ -908,7 +908,8 @@ export default function Home() {
         onMouseMove={handlePlayerHover}
         onMouseLeave={handlePlayerLeave}
         onTouchStart={handlePlayerTouch}
-        className={`overflow-hidden bg-black shadow-lg ${isFullscreen ? "fixed inset-0 z-[100] rounded-none border-0" : "relative rounded-lg border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)]"}`}
+        style={isFullscreen ? { height: "100dvh" } : undefined}
+        className={`overflow-hidden bg-black shadow-lg ${isFullscreen ? "fixed left-0 right-0 top-0 z-[100] rounded-none border-0" : "relative rounded-lg border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)]"}`}
       >
         <div className={`${isFullscreen ? "absolute inset-0" : "aspect-video"} w-full [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full`}>
           <YouTube
@@ -949,7 +950,10 @@ export default function Home() {
           />
         )}
 
-        <div className="absolute inset-x-0 top-0 z-20 h-16" />
+        <div
+          className="absolute inset-x-0 top-0 z-20"
+          style={{ height: "calc(4rem + env(safe-area-inset-top, 0px))" }}
+        />
 
         {!isFullscreen ? (
           <button
@@ -967,6 +971,10 @@ export default function Home() {
             onClick={toggleFullscreen}
             title="전체화면 닫기 (단축키: F / Esc)"
             className={`absolute right-3 top-3 z-40 flex items-center gap-1.5 rounded-md bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur transition hover:bg-black/70 active:scale-95 ${showFsControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+            style={{
+              top: "calc(0.75rem + env(safe-area-inset-top, 0px))",
+              right: "calc(0.75rem + env(safe-area-inset-right, 0px))",
+            }}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path fillRule="evenodd" d="M4.28 4.28a.75.75 0 011.06 0L10 8.94l4.66-4.66a.75.75 0 111.06 1.06L11.06 10l4.66 4.66a.75.75 0 11-1.06 1.06L10 11.06l-4.66 4.66a.75.75 0 01-1.06-1.06L8.94 10 4.28 5.34a.75.75 0 010-1.06z" clipRule="evenodd" />
@@ -990,6 +998,17 @@ export default function Home() {
             onMouseMove={(e) => { e.stopPropagation(); handlePlayerHover() }}
             onTouchStart={(e) => { e.stopPropagation(); handlePlayerTouch() }}
             className={`absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/[0.03] to-transparent px-3 pb-3 pt-3 transition-opacity duration-300 sm:px-4 sm:pb-4 ${showFsControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+            style={{
+              paddingBottom: isFullscreen
+                ? "calc(0.75rem + env(safe-area-inset-bottom, 0px))"
+                : undefined,
+              paddingLeft: isFullscreen
+                ? "calc(0.75rem + env(safe-area-inset-left, 0px))"
+                : undefined,
+              paddingRight: isFullscreen
+                ? "calc(0.75rem + env(safe-area-inset-right, 0px))"
+                : undefined,
+            }}
           >
             {/* Progress Bar */}
             <div
