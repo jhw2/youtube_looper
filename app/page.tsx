@@ -87,6 +87,7 @@ export default function Home() {
   const [showVideoList, setShowVideoList] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showFsControls, setShowFsControls] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [showPlayerSettings, setShowPlayerSettings] = useState(false)
   const fsHideTimerRef = useRef<number | null>(null)
   const currentVideoSegments = useMemo(
@@ -607,6 +608,23 @@ export default function Home() {
     return () => clearFsHideTimer()
   }, [])
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(hover: none), (pointer: coarse)")
+    const updateTouchDevice = () => {
+      setIsTouchDevice(mediaQuery.matches || "ontouchstart" in window)
+    }
+
+    updateTouchDevice()
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateTouchDevice)
+      return () => mediaQuery.removeEventListener("change", updateTouchDevice)
+    }
+
+    mediaQuery.addListener(updateTouchDevice)
+    return () => mediaQuery.removeListener(updateTouchDevice)
+  }, [])
+
   // 단축키
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -745,20 +763,23 @@ export default function Home() {
       {/* Header */}
       <header className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-zinc-50">YouTube Looper</h1>
+          <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-zinc-50">
+            <span className="sm:hidden">YT Looper</span>
+            <span className="hidden sm:inline">YouTube Looper</span>
+          </h1>
         </div>
         <div className="flex gap-2">
           <select
             value={i18n.language}
             onChange={(e) => i18n.changeLanguage(e.target.value)}
-            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-200 outline-none transition hover:border-zinc-500"
+            className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-sm font-medium text-zinc-200 outline-none transition hover:border-zinc-500 sm:px-3 sm:py-2"
           >
             <option value="en">English</option>
             <option value="ko">한국어</option>
           </select>
           <button
             onClick={() => setShowShortcuts(true)}
-            className="rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800"
+            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800 sm:px-4 sm:py-2"
           >
             {t("help")}
           </button>
@@ -909,6 +930,24 @@ export default function Home() {
             className="h-full w-full"
           />
         </div>
+
+        {isTouchDevice && (
+          <button
+            type="button"
+            aria-label="플레이어 컨트롤 보기"
+            onTouchStart={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handlePlayerTouch()
+            }}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handlePlayerTouch()
+            }}
+            className={`absolute inset-0 z-10 bg-transparent transition-opacity ${showFsControls ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"}`}
+          />
+        )}
 
         <div className="absolute inset-x-0 top-0 z-20 h-16" />
 
