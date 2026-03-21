@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next"
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
-      url: "https://youtube-looper.vercel.app",
+      url: "https://ytlooper.net",
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1,

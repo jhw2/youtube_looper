@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://youtube-looper.vercel.app"),
+  metadataBase: new URL("https://ytlooper.net"),
   applicationName: "YouTube Looper",
   title: "YouTube Looper - 유튜브 구간 반복 재생",
   description:
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ko_KR",
     siteName: "YouTube Looper",
-    url: "https://youtube-looper.vercel.app",
+    url: "https://ytlooper.net",
   },
   twitter: {
     card: "summary_large_image",
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     follow: true,
   },
   alternates: {
-    canonical: "https://youtube-looper.vercel.app",
+    canonical: "https://ytlooper.net",
   },
 };
 
