@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     follow: true,
   },
   alternates: {
-    canonical: "https://ytlooper.net",
+    canonical: 'https://ytlooper.net',
   },
 };
 
