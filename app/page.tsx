@@ -50,6 +50,13 @@ const LOOP_DELAY_OPTIONS = [0, 1, 2, 3, 5]
 const YOUTUBE_STATE_PLAYING = 1
 const HANDLE = 28
 const MIN_GAP = 0.1
+const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/
+const ALLOWED_YOUTUBE_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "youtu.be",
+])
 
 export default function Home() {
   const { t, i18n } = useTranslation()
@@ -117,26 +124,44 @@ export default function Home() {
     return `${seconds.toFixed(1)}s`
   }
 
+  const isAllowedYouTubeHost = (hostname: string) => ALLOWED_YOUTUBE_HOSTS.has(hostname.toLowerCase())
+
   const extractVideoId = (value: string): string | null => {
     try {
       const url = new URL(value)
+      const hostname = url.hostname.toLowerCase()
 
-      if (url.hostname.includes("youtu.be")) {
-        return url.pathname.replace("/", "") || null
+      if (!isAllowedYouTubeHost(hostname)) {
+        return null
       }
 
-      if (url.hostname.includes("youtube.com")) {
+      if (hostname === "youtu.be") {
+        const videoId = url.pathname.replace(/^\/+/, "").split("/")[0] || null
+        return videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null
+      }
+
+      if (hostname === "youtube.com" || hostname === "www.youtube.com" || hostname === "m.youtube.com") {
         if (url.pathname.includes("/shorts/")) {
           const parts = url.pathname.split("/")
-          return parts[2] || null
+          const videoId = parts[2] || null
+          return videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null
         }
-        return url.searchParams.get("v")
+        const videoId = url.searchParams.get("v")
+        return videoId && YOUTUBE_VIDEO_ID_PATTERN.test(videoId) ? videoId : null
       }
 
       return null
     } catch {
       return null
     }
+  }
+
+  const getVideoIdFromQuery = () => {
+    const queryVideoId = new URLSearchParams(window.location.search).get("v")
+    if (!queryVideoId) return null
+
+    const normalized = queryVideoId.trim()
+    return YOUTUBE_VIDEO_ID_PATTERN.test(normalized) ? normalized : null
   }
 
   const clamp = (value: number) => Math.max(0, Math.min(value, duration || value))
@@ -234,18 +259,15 @@ export default function Home() {
       }
     }
 
-    // 쿼리스트링 ?url= 로 유튜브 링크가 넘어오면 해당 영상을 로드
-    const urlParam = new URLSearchParams(window.location.search).get("url")
-    if (urlParam) {
-      const extracted = extractVideoId(urlParam)
-      if (extracted) {
-        setVideoId(extracted)
-        setInputValue(urlParam)
-        setCurrentTime(0)
-        setPointA(null)
-        setPointB(null)
-        restoreTimeRef.current = 0
-      }
+    // 자동 로드는 raw URL 대신 검증된 videoId 쿼리 파라미터만 허용
+    const queryVideoId = getVideoIdFromQuery()
+    if (queryVideoId) {
+      setVideoId(queryVideoId)
+      setInputValue(`https://www.youtube.com/watch?v=${queryVideoId}`)
+      setCurrentTime(0)
+      setPointA(null)
+      setPointB(null)
+      restoreTimeRef.current = 0
     }
   }, [])
 
@@ -804,6 +826,18 @@ export default function Home() {
         >
           {t("load")}
         </button>
+      </section>
+
+      <section className="flex flex-col gap-2 rounded-lg border border-zinc-800 bg-zinc-900/70 px-4 py-3 text-xs text-zinc-300 shadow-[0_1px_2px_rgba(0,0,0,0.25)] sm:flex-row sm:items-center sm:justify-between">
+        <p>{t("safetyNotice")}</p>
+        <a
+          href={`https://www.youtube.com/watch?v=${videoId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 rounded-md border border-zinc-700 px-3 py-2 text-center font-medium text-zinc-100 transition hover:border-zinc-500 hover:bg-zinc-800"
+        >
+          {t("openOnYouTube")}
+        </a>
       </section>
 
 
