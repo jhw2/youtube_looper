@@ -1,26 +1,40 @@
 import i18n from "i18next"
-import LanguageDetector from "i18next-browser-languagedetector"
 import { initReactI18next } from "react-i18next"
-import httpBackend from "i18next-http-backend"
+import enCommon from "../public/locales/en/common.json"
+import koCommon from "../public/locales/ko/common.json"
 
-i18n
-  .use(httpBackend)
-  .use(LanguageDetector)
-  .use(initReactI18next)
-  .init({
+const resources = {
+  en: {
+    common: enCommon,
+  },
+  ko: {
+    common: koCommon,
+  },
+} as const
+
+const detectLanguage = () => {
+  if (typeof window === "undefined") {
+    return "ko"
+  }
+
+  const saved = window.localStorage.getItem("i18nextLng")
+  if (saved === "ko" || saved === "en") {
+    return saved
+  }
+
+  return window.navigator.language.toLowerCase().startsWith("ko") ? "ko" : "en"
+}
+
+if (!i18n.isInitialized) {
+  void i18n.use(initReactI18next).init({
+    resources,
+    lng: detectLanguage(),
     fallbackLng: "en",
-    ns: ["common"],
     defaultNS: "common",
-    backend: {
-      loadPath: "/locales/{{lng}}/{{ns}}.json",
-    },
-    detection: {
-      order: ["localStorage", "navigator"],
-      caches: ["localStorage"],
-    },
     interpolation: {
       escapeValue: false,
     },
   })
+}
 
 export default i18n
