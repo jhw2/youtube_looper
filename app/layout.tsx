@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://youtube-looper.vercel.app"),
+  applicationName: "YouTube Looper",
   title: "YouTube Looper - 유튜브 구간 반복 재생",
   description:
     "기타 연습, 베이스 연습, 드럼, 피아노 등 악기 연습과 음악 연습에 최적화된 유튜브 구간 반복 재생 도구입니다. A/B 구간 반복, 속도 조절, 구간 저장, 재생 목록 관리 기능을 무료로 제공합니다.",
