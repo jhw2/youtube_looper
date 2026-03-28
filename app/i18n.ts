@@ -12,9 +12,23 @@ const resources = {
   },
 } as const
 
+const SUPPORTED_LANGUAGES = new Set(["ko", "en"])
+
+const getLanguageFromPathname = () => {
+  if (typeof window === "undefined") return null
+
+  const [maybeLanguage] = window.location.pathname.split("/").filter(Boolean)
+  return maybeLanguage && SUPPORTED_LANGUAGES.has(maybeLanguage) ? maybeLanguage : null
+}
+
 const detectLanguage = () => {
   if (typeof window === "undefined") {
-    return "ko"
+    return "en"
+  }
+
+  const pathnameLanguage = getLanguageFromPathname()
+  if (pathnameLanguage) {
+    return pathnameLanguage
   }
 
   const saved = window.localStorage.getItem("i18nextLng")
