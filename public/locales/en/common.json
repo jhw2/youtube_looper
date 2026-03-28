@@ -15,6 +15,7 @@
   "loopStartDelay": "Loop Start Countdown",
   "immediately": "Start immediately",
   "savedSegments": "Saved Segments",
+  "noSegments": "No saved segments",
   "segments": "segments",
   "save": "Save",
   "cancel": "Cancel",
@@ -54,7 +55,8 @@
   "help_14": "Fullscreen",
   "help_15": "Skip forward/backward",
   "help_16": "Adjust speed",
-  "help_17": "Jump to saved segments with 1-9 (1 is the first segment you saved)",
+  "help_17": "Jump to recently saved segments with 1-9",
   "help_18": "Jump to saved segments",
+  "segmentShortcutHint": "Press {{shortcutNumber}} to jump here",
   "videoListTitle": "Saved Videos"
 }

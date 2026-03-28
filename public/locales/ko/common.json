@@ -15,6 +15,7 @@
   "loopStartDelay": "루프 시작 전 타이머",
   "immediately": "바로 시작",
   "savedSegments": "저장된 구간",
+  "noSegments": "저장된 구간이 없습니다",
   "segments": "개",
   "save": "저장",
   "cancel": "취소",
@@ -54,7 +55,8 @@
   "help_14": "전체화면",
   "help_15": "앞뒤 이동",
   "help_16": "속도 조절",
-  "help_17": "저장된 구간 1~9번으로 이동 (1번이 가장 먼저 저장한 구간)",
+  "help_17": "숫자 1~9로 최근 저장한 구간으로 이동",
   "help_18": "저장 구간 이동",
+  "segmentShortcutHint": "{{shortcutNumber}}번 키로 바로 이동",
   "videoListTitle": "저장된 영상"
 }

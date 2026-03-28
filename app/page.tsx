@@ -58,6 +58,25 @@ const ALLOWED_YOUTUBE_HOSTS = new Set([
   "youtu.be",
 ])
 
+function SettingsIcon({ className }: { className: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3.25" />
+      <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1 .2l-.2.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1l-.1-.2a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.2a1 1 0 0 0-.2 1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z" />
+    </svg>
+  )
+}
+
 export default function Home() {
   const { t, i18n } = useTranslation()
   const playerRef = useRef<PlayerLike | null>(null)
@@ -112,6 +131,8 @@ export default function Home() {
   const loopEndPercent = duration > 0 && pointB !== null ? (pointB / duration) * 100 : 0
   const loopWidth = Math.max(loopEndPercent - loopStartPercent, 0)
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0
+  const formatSegmentShortcut = (shortcutIndex: number) =>
+    t("segmentShortcutHint", { shortcutNumber: shortcutIndex + 1 })
 
   const format = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -209,6 +230,10 @@ export default function Home() {
 
     const nextDuration = player.getDuration()
     setDuration(nextDuration)
+
+    // A/B가 지정되지 않은 경우 기본값으로 A=0, B=끝 설정
+    setPointA((prev) => prev ?? 0)
+    setPointB((prev) => prev ?? nextDuration)
 
     const restoreTime = restoreTimeRef.current
     if (restoreTime !== null) {
@@ -342,7 +367,7 @@ export default function Home() {
       const total = player.getDuration()
       setDuration((prev) => (prev === total ? prev : total))
 
-      if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
+if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
         startLoopWithDelay();
         player.seekTo(pointA, true)
       }
@@ -530,7 +555,7 @@ export default function Home() {
     if (!canLoop || pointA === null || pointB === null) return
 
     const segment: SavedSegment = {
-      id: crypto.randomUUID(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       videoId,
       title: segmentTitle.trim() || `${format(pointA)}-${format(pointB)}`,
       start: pointA,
@@ -570,6 +595,7 @@ export default function Home() {
   }
 
   const playerContainerRef = useRef<HTMLDivElement | null>(null)
+  const sliderRef = useRef<HTMLDivElement | null>(null)
 
   const toggleFullscreen = () => {
     setIsFullscreen((prev) => {
@@ -781,27 +807,25 @@ export default function Home() {
   }, [currentTime, playbackRate, pointA, pointB, isLooping, countdown, seekStep, shortcutSegments])
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-4 px-3 py-4 sm:px-6 sm:py-6">
-      {/* Header */}
-      <header className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
-        <div>
-          <h1 className="whitespace-nowrap text-xl font-bold tracking-tight text-zinc-50">
-            <span className="sm:hidden">YT Looper</span>
-            <span className="hidden sm:inline">YouTube Looper</span>
-          </h1>
+    <main className="mx-auto flex min-h-screen max-w-xl flex-col gap-3 px-3 py-3">
+      {/* Compact Header */}
+      <header className="flex items-center justify-between gap-2 py-1">
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-bold text-zinc-50">YT Looper</h1>
+          <span className="hidden text-[11px] text-zinc-500 sm:inline">A-B 구간 반복</span>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <select
             value={i18n.language}
             onChange={(e) => i18n.changeLanguage(e.target.value)}
-            className="rounded-lg border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-sm font-medium text-zinc-200 outline-none transition hover:border-zinc-500 sm:px-3 sm:py-2"
+            className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs font-medium text-zinc-200 outline-none transition hover:border-zinc-500"
           >
-            <option value="en">English</option>
+            <option value="en">EN</option>
             <option value="ko">한국어</option>
           </select>
           <button
             onClick={() => setShowShortcuts(true)}
-            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-200 transition hover:bg-zinc-800 sm:px-4 sm:py-2"
+            className="rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-1 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
           >
             {t("help")}
           </button>
@@ -809,9 +833,9 @@ export default function Home() {
       </header>
 
       {/* URL Input */}
-      <section className="flex gap-2 rounded-lg border border-zinc-800 bg-zinc-900 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+      <section className="flex gap-2 rounded-xl border border-zinc-800 bg-zinc-900 p-2">
         <input
-          className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-sky-500 focus:bg-zinc-900"
+          className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-sky-500 focus:bg-zinc-900"
           placeholder={t("urlPlaceholder")}
           type="search"
           value={inputValue}
@@ -821,105 +845,12 @@ export default function Home() {
           }}
         />
         <button
-          className="shrink-0 rounded-md bg-[#3ea6ff] px-5 py-3 text-sm font-semibold text-[#0f0f0f] transition hover:bg-[#65b8ff] active:scale-95"
+          className="shrink-0 rounded-lg bg-[#3ea6ff] px-4 py-2.5 text-sm font-semibold text-[#0f0f0f] transition hover:bg-[#65b8ff] active:scale-95"
           onClick={handleLoadVideo}
         >
           {t("load")}
         </button>
       </section>
-
-      {/* Saved Segments - Sticky Top */}
-
-      {currentVideoSegments.length > 0 && (<section className="sticky top-0 z-50 -mx-3 space-y-3 border-y border-zinc-800 bg-[#0f0f0f]/95 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.35)] backdrop-blur sm:mx-0 sm:rounded-lg sm:border sm:p-4">
-
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-zinc-100">{t("savedSegments")}</h2>
-          <p className="text-xs text-zinc-400">{currentVideoSegments.length}{t("segments")}</p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {currentVideoSegments.map((segment) => {
-            const isActive = pointA === segment.start && pointB === segment.end
-            const shortcutIndex = shortcutSegments.findIndex((item) => item.id === segment.id)
-
-            return (
-              <div
-                key={segment.id}
-                className={`flex items-center justify-between gap-2 rounded-md border p-3 transition ${isActive
-                  ? "border-sky-500 bg-zinc-800"
-                  : "border-zinc-800 bg-zinc-900 hover:border-zinc-700"
-                  }`}
-              >
-                {editingSegmentId === segment.id ? (
-                  <div className="flex min-w-0 flex-1 gap-2">
-                    <input
-                      className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-sky-500 focus:bg-zinc-900"
-                      type="search"
-                      value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") saveEditSegment()
-                        if (e.key === "Escape") cancelEditSegment()
-                      }}
-                      autoFocus
-                    />
-                    <button
-                      className="shrink-0 rounded-lg bg-[#3ea6ff] px-3 py-2 text-xs font-semibold text-[#0f0f0f] active:scale-95"
-                      onClick={saveEditSegment}
-                    >
-                      {t("save")}
-                    </button>
-                    <button
-                      className="shrink-0 rounded-lg border border-zinc-700 px-3 py-2 text-xs text-zinc-200 active:scale-95"
-                      onClick={cancelEditSegment}
-                    >
-                      {t("cancel")}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      className="min-w-0 flex-1 text-left"
-                      onClick={() => selectSegment(segment)}
-                    >
-                      <p className={`flex items-center gap-2 truncate text-sm font-semibold ${isActive ? "text-zinc-50" : "text-zinc-200"}`}>
-                        {shortcutIndex >= 0 && (
-                          <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-sm bg-zinc-700 px-1 text-[10px] font-bold text-white">
-                            {shortcutIndex + 1}
-                          </span>
-                        )}
-                        <span className="truncate">{segment.title}</span>
-                      </p>
-                      <p className={`mt-0.5 text-[11px] ${isActive ? "text-sky-400" : "text-zinc-400"}`}>
-                        {shortcutIndex >= 0 ? `${shortcutIndex + 1} ` : ""}
-                        {format(segment.start)} - {format(segment.end)}
-                      </p>
-                    </button>
-                    <div className="flex shrink-0 gap-1.5">
-                      <button
-                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 active:scale-95"
-                        onClick={() => startEditSegment(segment)}
-                      >
-                        {t("edit")}
-                      </button>
-                      <button
-                        className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 active:scale-95"
-                        onClick={() =>
-                          setSavedSegments((prev) => prev.filter((item) => item.id !== segment.id))
-                        }
-                      >
-                        {t("delete")}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-      </section>
-      )}
 
 
       {/* YouTube Player */}
@@ -930,7 +861,7 @@ export default function Home() {
         onMouseLeave={handlePlayerLeave}
         onTouchStart={handlePlayerTouch}
         style={isFullscreen ? { height: "100dvh" } : undefined}
-        className={`overflow-hidden bg-black shadow-lg ${isFullscreen ? "fixed left-0 right-0 top-0 z-[100] rounded-none border-0" : "relative rounded-lg border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)]"}`}
+        className={`overflow-hidden bg-black shadow-lg ${isFullscreen ? "fixed left-0 right-0 top-0 z-[100] rounded-none border-0" : "relative rounded-xl border border-zinc-800 shadow-[0_1px_3px_rgba(0,0,0,0.4)]"}`}
       >
         <div className={`${isFullscreen ? "absolute inset-0" : "aspect-video"} w-full [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full`}>
           <YouTube
@@ -1077,18 +1008,14 @@ export default function Home() {
 
             {/* Controls Row */}
             <div className="flex flex-wrap items-center gap-2">
-              <button onClick={toggleLoop} disabled={!canLoop} className="rounded-lg bg-[#3ea6ff]/90 px-3 py-1.5 text-xs font-semibold text-[#0f0f0f] backdrop-blur hover:bg-[#65b8ff] active:scale-95 disabled:opacity-40">
+              <button onClick={toggleLoop} disabled={!canLoop} title={`${isLooping ? t("loopOff") : t("loopOn")} — 단축키: L`} className="rounded-lg bg-[#3ea6ff]/90 px-3 py-1.5 text-xs font-semibold text-[#0f0f0f] backdrop-blur hover:bg-[#65b8ff] active:scale-95 disabled:opacity-40">
                 {countdown !== null ? `${countdown}...` : isLooping ? t("loopOff") : t("loopOn")}
               </button>
-              <button onClick={() => { clearCountdown(); setPointA(currentTime) }} className="rounded-lg bg-[#3ea6ff]/90 px-3 py-1.5 text-xs font-medium text-[#0f0f0f] backdrop-blur hover:bg-[#65b8ff] active:scale-95">
-                 {t("setA")}
-              </button>
-              <button onClick={() => { clearCountdown(); setPointB(currentTime) }} className="rounded-lg bg-zinc-800/90 px-3 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-zinc-700 active:scale-95">
-                {t("setB")}
-              </button>
+
               <button
                 disabled={!canLoop}
                 onClick={handleSave}
+                title={`${t("saveSegment")} — 단축키: S`}
                 className="shrink-0 rounded-lg bg-[#3ea6ff]/90 px-3 py-1.5 text-xs font-semibold text-[#0f0f0f] backdrop-blur hover:bg-[#65b8ff] active:scale-95 disabled:opacity-40"
               >
                 {t("saveSegment")}
@@ -1100,9 +1027,7 @@ export default function Home() {
                   className="rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-white backdrop-blur transition hover:bg-black/55 active:scale-95"
                   title="플레이어 설정"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                    <path fillRule="evenodd" d="M7.84 1.804a1 1 0 011.98 0l.16 1.127a7.03 7.03 0 011.717.711l.91-.687a1 1 0 011.4.13l1.4 1.4a1 1 0 01.13 1.4l-.687.91c.306.54.546 1.112.711 1.717l1.127.16a1 1 0 010 1.98l-1.127.16a7.029 7.029 0 01-.711 1.717l.687.91a1 1 0 01-.13 1.4l-1.4 1.4a1 1 0 01-1.4.13l-.91-.687a7.031 7.031 0 01-1.717.711l-.16 1.127a1 1 0 01-1.98 0l-.16-1.127a7.03 7.03 0 01-1.717-.711l-.91.687a1 1 0 01-1.4-.13l-1.4-1.4a1 1 0 01-.13-1.4l.687-.91a7.029 7.029 0 01-.711-1.717l-1.127-.16a1 1 0 010-1.98l1.127-.16a7.03 7.03 0 01.711-1.717l-.687-.91a1 1 0 01.13-1.4l1.4-1.4a1 1 0 011.4-.13l.91.687a7.03 7.03 0 011.717-.711l.16-1.127zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                  </svg>
+                  <SettingsIcon className="h-4 w-4" />
                 </button>
 
                 {showPlayerSettings && (
@@ -1157,6 +1082,7 @@ export default function Home() {
                     <button
                       key={segment.id}
                       onClick={() => selectSegment(segment)}
+                      title={shortcutIndex >= 0 ? formatSegmentShortcut(shortcutIndex) : undefined}
                       className={`rounded-lg px-2.5 py-1 text-xs font-medium backdrop-blur transition active:scale-95 ${isActive
                         ? "bg-[#3ea6ff]/90 text-[#0f0f0f]"
                         : "bg-black/40 text-white/80 hover:bg-black/55"
@@ -1167,7 +1093,7 @@ export default function Home() {
                           {shortcutIndex + 1}
                         </span>
                       )}
-                      {segment.title} <span className="text-white/60">{format(segment.start)}-{format(segment.end)}</span>
+                      {segment.title}
                     </button>
                   )
                 })}
@@ -1177,150 +1103,277 @@ export default function Home() {
         }
       </section>
 
-      {/* A/B Section */}
-      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-zinc-100">{t("abSection")}</h2>
-            <p className="text-xs text-zinc-400">{t("dragToAdjust")}</p>
-          </div>
-          <div className="text-right text-xs text-zinc-400">
-            <p>
-              {format(currentTime)} / {duration > 0 ? format(duration) : "--:--"}
-            </p>
-            <p>
-              {canLoop && pointA !== null && pointB !== null
-                ? `${t("length")} ${formatPrecise(pointB - pointA)}`
-                : t("segmentNotSet")}
-            </p>
-          </div>
-        </div>
-
+      {/* Controls Section */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
         {/* Progress Bar */}
         <div
           ref={progressBarRef}
           onPointerMove={handlePointerMove}
           onClick={handleProgressTap}
-          className="relative mb-4 h-3 w-full touch-none rounded-full bg-zinc-800"
+          className="relative mb-2 h-2 w-full touch-none rounded-full bg-zinc-800"
         >
           <div
-            className="absolute left-0 top-0 h-3 rounded-full bg-zinc-200/70"
+            className="absolute left-0 top-0 h-2 rounded-full bg-zinc-200/70"
             style={{ width: `${progressPercent}%` }}
           />
-
           {canLoop && (
             <div
-              className="absolute top-0 z-10 h-3 cursor-grab rounded-full bg-sky-500/70 active:cursor-grabbing"
+              className="absolute top-0 z-10 h-2 cursor-grab rounded-full bg-sky-500/70 active:cursor-grabbing"
               style={{ left: `${loopStartPercent}%`, width: `${loopWidth}%` }}
-              onPointerDown={(e) => {
-                e.stopPropagation()
-                startDrag("range", e.clientX)
-              }}
+              onPointerDown={(e) => { e.stopPropagation(); startDrag("range", e.clientX) }}
             />
           )}
-
           {pointA !== null && (
             <button
               type="button"
               aria-label="A 핸들"
-              title={`A ${formatPrecise(pointA)}`}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                startDrag("a", e.clientX)
-              }}
+              title={`A 시작점 — 단축키: A키 | 현재: ${formatPrecise(pointA)}`}
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrag("a", e.clientX) }}
               className="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-[#3ea6ff] shadow-lg transition hover:scale-110"
               style={{ left: `${loopStartPercent}%`, width: HANDLE, height: HANDLE }}
             >
               <span className="text-[10px] font-extrabold text-white">A</span>
             </button>
           )}
-
           {pointB !== null && (
             <button
               type="button"
               aria-label="B 핸들"
-              title={`B ${formatPrecise(pointB)}`}
-              onPointerDown={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                startDrag("b", e.clientX)
-              }}
+              title={`B 끝점 — 단축키: B키 | 현재: ${formatPrecise(pointB)}`}
+              onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); startDrag("b", e.clientX) }}
               className="absolute top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-zinc-900 shadow-lg transition hover:scale-110"
               style={{ left: `${loopEndPercent}%`, width: HANDLE, height: HANDLE }}
             >
               <span className="text-[10px] font-extrabold text-white">B</span>
             </button>
           )}
-
           <div
-            className="absolute top-[-3px] z-30 h-5 w-1 -translate-x-1/2 rounded-full bg-zinc-50 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
+            className="absolute top-[-4px] z-30 h-4 w-1 -translate-x-1/2 rounded-full bg-zinc-50 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
             style={{ left: `${progressPercent}%` }}
           />
         </div>
 
-        {/* A/B Buttons */}
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {/* Time & A/B Display */}
+        <div className="mb-3 flex items-center justify-between text-xs">
+          <span className="font-mono font-semibold text-sky-400">
+            A {pointA !== null ? format(pointA) : "--:--"}
+          </span>
+          <span className="text-zinc-500">
+            {format(currentTime)} / {duration > 0 ? format(duration) : "--:--"}
+          </span>
+          <span className="font-mono font-semibold text-zinc-300">
+            B {pointB !== null ? format(pointB) : "--:--"}
+          </span>
+        </div>
+
+        {/* Loop & Save */}
+        <div className="mt-3 flex gap-2">
           <button
-            title="단축키: A"
-            className="rounded-md border border-sky-700 bg-sky-500 px-3 py-2.5 text-sm font-semibold text-[#0f0f0f] transition hover:bg-sky-400 active:scale-95"
-            onClick={() => {
-              clearCountdown()
-              setPointA(currentTime)
-            }}
+            onClick={toggleLoop}
+            disabled={!canLoop}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition active:scale-95 disabled:opacity-40 ${isLooping || countdown !== null ? "bg-sky-500 text-[#0f0f0f] hover:bg-sky-400" : "border border-zinc-700 bg-zinc-800 text-zinc-200 hover:bg-zinc-700"}`}
+            title={`${isLooping ? t("loopOff") : t("loopOn")} — 단축키: L`}
           >
-            {t("setA")}
+            {countdown !== null ? (
+              <span>{countdown}...</span>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 shrink-0">
+                  <path fillRule="evenodd" d="M12 5.25c1.213 0 2.415.046 3.605.135a3.256 3.256 0 013.01 3.01c.044.583.077 1.17.1 1.759L17.03 8.47a.75.75 0 10-1.06 1.06l3 3a.75.75 0 001.06 0l3-3a.75.75 0 00-1.06-1.06l-1.752 1.751c-.023-.65-.06-1.296-.108-1.939a4.756 4.756 0 00-4.392-4.392 49.422 49.422 0 00-7.436 0A4.756 4.756 0 003.89 7.39a.75.75 0 001.11 1.008 3.256 3.256 0 012.9-2.148 47.923 47.923 0 017.1 0zM12 18.75c-1.213 0-2.415-.046-3.605-.135a3.256 3.256 0 01-3.01-3.01 47.43 47.43 0 01-.1-1.759l1.689 1.689a.75.75 0 101.06-1.06l-3-3a.75.75 0 00-1.06 0l-3 3a.75.75 0 101.06 1.06l1.752-1.751c.023.65.06 1.296.108 1.939a4.756 4.756 0 004.392 4.392 49.413 49.413 0 007.436 0 4.756 4.756 0 004.392-4.392.75.75 0 00-1.5-.059 3.256 3.256 0 01-2.9 2.148 47.923 47.923 0 01-7.1 0z" clipRule="evenodd" />
+                </svg>
+                {isLooping ? t("loopOff") : t("loopOn")}
+              </>
+            )}
           </button>
+
           <button
-            title="단축키: B"
-            className="rounded-md border border-zinc-600 bg-zinc-200 px-3 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-white active:scale-95"
-            onClick={() => {
-              clearCountdown()
-              setPointB(currentTime)
-            }}
+            onClick={handleSave}
+            disabled={!canLoop}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-800 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-zinc-700 active:scale-95 disabled:opacity-40"
+            title={`${t("saveSegment")} — 단축키: S`}
           >
-            {t("setB")}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 shrink-0">
+              <path d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" />
+            </svg>
+            {t("saveSegment")}
           </button>
+
           <button
-            title="단축키: ←"
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 active:scale-95"
-            onClick={() => {
-              seekTo(currentTime - seekStep)
-            }}
+            onClick={() => setShowPlayerSettings((prev) => !prev)}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition active:scale-95 ${showPlayerSettings ? "border-sky-500 bg-sky-500/20 text-sky-300" : "border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"}`}
+            title="상세 설정 (속도 / 반복 딜레이)"
           >
-            -{seekStep}{t("seconds")}
-          </button>
-          <button
-            title="단축키: →"
-            className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 active:scale-95"
-            onClick={() => {
-              seekTo(currentTime + seekStep)
-            }}
-          >
-            +{seekStep}{t("seconds")}
+            <SettingsIcon className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Save Segment */}
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
-            className="min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition focus:border-sky-500 focus:bg-zinc-900"
-            placeholder={t("segmentName")}
-            value={segmentTitle}
-            onChange={(e) => setSegmentTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave()
-            }}
-          />
-          <button
-            disabled={!canLoop}
-            onClick={handleSave}
-            title="단축키: S"
-            className="shrink-0 rounded-md bg-[#3ea6ff] px-4 py-3 text-sm font-semibold text-[#0f0f0f] transition hover:bg-[#65b8ff] active:scale-95 disabled:opacity-40"
-          >
-            {t("saveSegment")}
-          </button>
+        {/* Settings Panel */}
+        {showPlayerSettings && (
+          <div className="mt-4 space-y-2 rounded-xl border border-zinc-700 bg-zinc-950 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              {/* Speed */}
+              <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
+                <span className="text-xs font-medium text-zinc-400">{t("speed")}</span>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setSpeed(Math.round(Math.max(0.25, playbackRate - 0.05) * 100) / 100)} className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-white hover:bg-zinc-700 active:scale-95">-</button>
+                  <span className="text-xs font-bold text-white">{playbackRate}x</span>
+                  <button onClick={() => setSpeed(Math.round(Math.min(3, playbackRate + 0.05) * 100) / 100)} className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-white hover:bg-zinc-700 active:scale-95">+</button>
+                </div>
+              </div>
+
+              {/* Seek Step */}
+              <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
+                <span className="text-xs font-medium text-zinc-400">{t("seek")}</span>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setSeekStep((prev) => Math.max(1, prev - 1))} className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-white hover:bg-zinc-700 active:scale-95">-</button>
+                  <span className="text-xs font-bold text-white">{seekStep}s</span>
+                  <button onClick={() => setSeekStep((prev) => Math.min(30, prev + 1))} className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-white hover:bg-zinc-700 active:scale-95">+</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Loop Delay */}
+            <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2">
+              <span className="text-xs font-medium text-zinc-400">{t("loopStartDelay")}</span>
+              <select
+                value={loopStartDelay}
+                onChange={(e) => setLoopStartDelay(Number(e.target.value))}
+                className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-xs text-white outline-none focus:border-sky-400"
+              >
+                {LOOP_DELAY_OPTIONS.map((sec) => (
+                  <option key={sec} value={sec} className="bg-zinc-950 text-white">
+                    {sec === 0 ? t("immediately") : `${sec}${t("seconds")}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Saved Segments Horizontal Slider */}
+      <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-bold text-zinc-100">{t("savedSegments")}</h2>
+          {currentVideoSegments.length > 0 && (
+            <span className="text-xs text-zinc-500">{currentVideoSegments.length}{t("segments")}</span>
+          )}
         </div>
+        {currentVideoSegments.length === 0 ? (
+          <p className="py-4 text-center text-xs text-zinc-500">{t("noSegments")}</p>
+        ) : (
+          <div className="relative">
+            <button
+              onClick={() => sliderRef.current?.scrollBy({ left: -160, behavior: "smooth" })}
+              className="absolute -left-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-300 shadow-md transition hover:bg-zinc-700 active:scale-95"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <button
+              onClick={() => sliderRef.current?.scrollBy({ left: 160, behavior: "smooth" })}
+              className="absolute -right-2 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-zinc-900 text-zinc-300 shadow-md transition hover:bg-zinc-700 active:scale-95"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <div
+              ref={sliderRef}
+              className="flex gap-3 overflow-x-auto px-2 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden cursor-grab active:cursor-grabbing select-none"
+              onMouseDown={(e) => {
+                const el = sliderRef.current
+                if (!el) return
+                const startX = e.pageX - el.offsetLeft
+                const scrollLeft = el.scrollLeft
+                const onMove = (ev: MouseEvent) => {
+                  const x = ev.pageX - el.offsetLeft
+                  el.scrollLeft = scrollLeft - (x - startX)
+                }
+                const onUp = () => {
+                  window.removeEventListener("mousemove", onMove)
+                  window.removeEventListener("mouseup", onUp)
+                }
+                window.addEventListener("mousemove", onMove)
+                window.addEventListener("mouseup", onUp)
+              }}
+            >
+            {currentVideoSegments.map((segment) => {
+              const isActive = pointA === segment.start && pointB === segment.end
+              const shortcutIndex = shortcutSegments.findIndex((item) => item.id === segment.id)
+              return (
+                <div
+                  key={segment.id}
+                  title={shortcutIndex >= 0 ? formatSegmentShortcut(shortcutIndex) : undefined}
+                  className={`group relative w-36 shrink-0 cursor-pointer overflow-hidden rounded-xl border transition ${isActive ? "border-sky-500" : "border-zinc-700 hover:border-zinc-500"}`}
+                  onClick={() => selectSegment(segment)}
+                >
+                  <img
+                    src={`https://img.youtube.com/vi/${segment.videoId}/mqdefault.jpg`}
+                    alt=""
+                    className="aspect-video w-full object-cover"
+                  />
+                  <div className={`p-2 ${isActive ? "bg-sky-900/30" : "bg-zinc-900"}`}>
+                    {shortcutIndex >= 0 && (
+                      <span className="mb-1 inline-flex h-4 min-w-4 items-center justify-center rounded-sm bg-zinc-700 px-1 text-[9px] font-bold text-white">
+                        {shortcutIndex + 1}
+                      </span>
+                    )}
+                    <p className={`truncate text-xs font-semibold ${isActive ? "text-sky-300" : "text-zinc-100"}`}>
+                      {segment.title}
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-zinc-400">
+                      {format(segment.start)} - {format(segment.end)}
+                    </p>
+                  </div>
+                  {shortcutIndex >= 0 && (
+                    <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 translate-y-2 rounded-md bg-black/80 px-2 py-1 text-center text-[10px] font-medium text-white opacity-0 shadow-lg backdrop-blur transition duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                      {formatSegmentShortcut(shortcutIndex)}
+                    </div>
+                  )}
+                  {editingSegmentId === segment.id ? (
+                    <div
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-zinc-950/95 p-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 outline-none focus:border-sky-500"
+                        type="text"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEditSegment()
+                          if (e.key === "Escape") cancelEditSegment()
+                        }}
+                        autoFocus
+                      />
+                      <div className="flex gap-1">
+                        <button className="rounded bg-[#3ea6ff] px-2 py-1 text-[10px] font-semibold text-[#0f0f0f] active:scale-95" onClick={saveEditSegment}>{t("save")}</button>
+                        <button className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-200 active:scale-95" onClick={cancelEditSegment}>{t("cancel")}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="absolute right-1 top-1 flex gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white backdrop-blur hover:bg-zinc-700"
+                        onClick={(e) => { e.stopPropagation(); startEditSegment(segment) }}
+                      >✎</button>
+                      <button
+                        className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white backdrop-blur hover:bg-red-900/80"
+                        onClick={(e) => { e.stopPropagation(); setSavedSegments((prev) => prev.filter((item) => item.id !== segment.id)) }}
+                      >✕</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Video List Toggle Button - Fixed Right */}
