@@ -919,7 +919,7 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
           />
         </div>
 
-        {isTouchDevice && (
+        {isTouchDevice && isFullscreen && (
           <div className="absolute inset-0 z-10 flex">
             <button
               type="button"
@@ -1060,6 +1060,14 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
 
             {/* Controls Row */}
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={togglePlayPause}
+                title={`${t("playPause")} — 단축키: Space`}
+                className="rounded-lg border border-white/10 bg-black/45 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur transition hover:bg-black/55 active:scale-95"
+              >
+                {t("playPause")}
+              </button>
+
               <button onClick={toggleLoop} disabled={!canLoop} title={`${isLooping ? t("loopOff") : t("loopOn")} — 단축키: L`} className="rounded-lg bg-[#3ea6ff]/90 px-3 py-1.5 text-xs font-semibold text-[#0f0f0f] backdrop-blur hover:bg-[#65b8ff] active:scale-95 disabled:opacity-40">
                 {countdown !== null ? `${countdown}...` : isLooping ? t("loopOff") : t("loopOn")}
               </button>
@@ -1544,20 +1552,6 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
           </div>
         </div>
       )}
-
-      <footer className="pb-4 pt-1 text-[11px] text-zinc-500 sm:pb-2">
-        <div className="flex flex-col gap-2 border-t border-zinc-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
-          <p>{t("safetyNotice")}</p>
-          <a
-            href={`https://www.youtube.com/watch?v=${videoId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex shrink-0 items-center justify-center rounded-md border border-zinc-800 px-2.5 py-1.5 text-[11px] font-medium text-zinc-300 transition hover:border-zinc-600 hover:bg-zinc-900 hover:text-zinc-100"
-          >
-            {t("openOnYouTube")}
-          </a>
-        </div>
-      </footer>
     </main>
   )
 }
