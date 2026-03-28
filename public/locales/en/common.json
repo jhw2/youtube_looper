@@ -58,5 +58,6 @@
   "help_17": "Jump to recently saved segments with 1-9",
   "help_18": "Jump to saved segments",
   "segmentShortcutHint": "Press {{shortcutNumber}} to jump here",
+  "savedSegmentsShortcutSummary": "Use 1-9 to jump",
   "videoListTitle": "Saved Videos"
 }

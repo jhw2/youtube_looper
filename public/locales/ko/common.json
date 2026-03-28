@@ -58,5 +58,6 @@
   "help_17": "숫자 1~9로 최근 저장한 구간으로 이동",
   "help_18": "저장 구간 이동",
   "segmentShortcutHint": "{{shortcutNumber}}번 키로 바로 이동",
+  "savedSegmentsShortcutSummary": "단축키 1~9로 이동",
   "videoListTitle": "저장된 영상"
 }

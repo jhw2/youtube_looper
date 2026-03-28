@@ -85,6 +85,10 @@ export default function Home() {
   const dragStartRef = useRef<{ clientX: number; startA: number; startB: number } | null>(null)
   const countdownIntervalRef = useRef<number | null>(null)
   const countdownTimeoutRef = useRef<number | null>(null)
+  const touchSeekRef = useRef<{ lastTapAt: number; side: "left" | "right" | null }>({
+    lastTapAt: 0,
+    side: null,
+  })
 
   const [videoId, setVideoId] = useState("gNOQ1quUi3U")
   const [inputValue, setInputValue] = useState("")
@@ -639,6 +643,27 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
     resetFsHideTimer()
   }
 
+  const handleMobileTapZone = (side: "left" | "center" | "right") => {
+    handlePlayerTouch()
+
+    if (side === "center") {
+      touchSeekRef.current = { lastTapAt: 0, side: null }
+      return
+    }
+
+    const now = Date.now()
+    const { lastTapAt, side: lastSide } = touchSeekRef.current
+
+    if (lastSide === side && now - lastTapAt < 320) {
+      const direction = side === "left" ? -1 : 1
+      seekTo(currentTime + direction * seekStep)
+      touchSeekRef.current = { lastTapAt: 0, side: null }
+      return
+    }
+
+    touchSeekRef.current = { lastTapAt: now, side }
+  }
+
   const handlePlayerLeave = () => {
     if (isFullscreen) return
     clearFsHideTimer()
@@ -829,6 +854,16 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
           >
             {t("help")}
           </button>
+          <button
+            onClick={() => setShowVideoList((prev) => !prev)}
+            className="flex h-7 w-8 items-center justify-center rounded-md border border-zinc-700 bg-zinc-950 text-zinc-200 transition hover:bg-zinc-800"
+            title={t("videoListTitle")}
+            aria-label={t("videoListTitle")}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+              <path fillRule="evenodd" d="M3 5.75A.75.75 0 013.75 5h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 5.75zm0 4.25a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 10zm0 4.25a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 14.25z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -885,21 +920,38 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
         </div>
 
         {isTouchDevice && (
-          <button
-            type="button"
-            aria-label="플레이어 컨트롤 보기"
-            onTouchStart={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              handlePlayerTouch()
-            }}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              handlePlayerTouch()
-            }}
-            className={`absolute inset-0 z-10 bg-transparent transition-opacity ${showFsControls ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100"}`}
-          />
+          <div className="absolute inset-0 z-10 flex">
+            <button
+              type="button"
+              aria-label={`왼쪽 두 번 탭: ${seekStep}초 뒤로`}
+              onTouchStart={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleMobileTapZone("left")
+              }}
+              className="h-full w-1/3 bg-transparent"
+            />
+            <button
+              type="button"
+              aria-label="플레이어 컨트롤 보기"
+              onTouchStart={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleMobileTapZone("center")
+              }}
+              className="h-full w-1/3 bg-transparent"
+            />
+            <button
+              type="button"
+              aria-label={`오른쪽 두 번 탭: ${seekStep}초 앞으로`}
+              onTouchStart={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleMobileTapZone("right")
+              }}
+              className="h-full w-1/3 bg-transparent"
+            />
+          </div>
         )}
 
         <div
@@ -911,7 +963,7 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
           <button
             onClick={toggleFullscreen}
             title="전체화면 (단축키: F)"
-            className={`absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-lg bg-black/70 px-3 py-2 text-xs font-semibold text-white shadow-lg transition hover:bg-black/80 active:scale-95 ${showFsControls ? "opacity-100" : "pointer-events-none opacity-0"}`}
+            className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-lg bg-black/70 px-3 py-2 text-xs font-semibold text-white shadow-lg transition hover:bg-black/80 active:scale-95"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
               <path d="M3.75 3.75v4.5h1.5v-3h3v-1.5h-4.5zM11.75 3.75v1.5h3v3h1.5v-4.5h-4.5zM5.25 11.75h-1.5v4.5h4.5v-1.5h-3v-3zM16.25 11.75v3h-3v1.5h4.5v-4.5h-1.5z" />
@@ -945,7 +997,7 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
         )}
 
         {/* Player Overlay Controls */}
-        {
+        {isFullscreen && (
           <div
             onMouseMove={(e) => { e.stopPropagation(); handlePlayerHover() }}
             onTouchStart={(e) => { e.stopPropagation(); handlePlayerTouch() }}
@@ -1023,6 +1075,7 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
               <div className={`relative ${isFullscreen ? "" : "ml-auto"}`}>
                 <button
                   type="button"
+                  onTouchStart={(e) => e.stopPropagation()}
                   onClick={() => setShowPlayerSettings((prev) => !prev)}
                   className="rounded-lg border border-white/10 bg-black/45 px-3 py-2 text-white backdrop-blur transition hover:bg-black/55 active:scale-95"
                   title="플레이어 설정"
@@ -1031,7 +1084,10 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
                 </button>
 
                 {showPlayerSettings && (
-                  <div className="absolute bottom-full right-0 z-40 mb-2 w-[220px] rounded-lg border border-white/10 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur">
+                  <div
+                    className="absolute bottom-full right-0 z-40 mb-2 w-[220px] rounded-lg border border-white/10 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur"
+                    onTouchStart={(e) => e.stopPropagation()}
+                  >
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/40 px-3 py-2">
                         <span className="text-xs font-semibold text-white/70">{t("seek")}</span>
@@ -1100,7 +1156,7 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
               </div>
             )}
           </div>
-        }
+        )}
       </section>
 
       {/* Controls Section */}
@@ -1254,7 +1310,12 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
       {/* Saved Segments Horizontal Slider */}
       <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-zinc-100">{t("savedSegments")}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-zinc-100">{t("savedSegments")}</h2>
+            {shortcutSegments.length > 0 && (
+              <span className="hidden text-[11px] text-zinc-500 sm:inline">{t("savedSegmentsShortcutSummary")}</span>
+            )}
+          </div>
           {currentVideoSegments.length > 0 && (
             <span className="text-xs text-zinc-500">{currentVideoSegments.length}{t("segments")}</span>
           )}
@@ -1375,22 +1436,6 @@ if (isLooping && pointA !== null && pointB !== null && time >= pointB) {
           </div>
         )}
       </section>
-
-      {/* Video List Toggle Button - Fixed Right */}
-      <button
-        onClick={() => setShowVideoList((prev) => !prev)}
-        className="fixed right-0 top-1/2 z-[55] -translate-y-1/2 rounded-l-md bg-zinc-800 px-2 py-3 text-zinc-100 shadow-lg transition hover:bg-zinc-700 active:scale-95"
-        title="저장된 영상 목록"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className={`h-4 w-4 transition-transform duration-300 ${showVideoList ? "rotate-180" : ""}`}
-        >
-          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-        </svg>
-      </button>
 
       {/* Video List Slide Panel */}
       <div
